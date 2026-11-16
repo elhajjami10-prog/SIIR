@@ -26,7 +26,8 @@ Ouvrez `index.html` (ou la version publiée) avec l'une de ces ancres :
 - Comptes de démo : Amine (passager) `06 61 23 45 67`, Youssef (chauffeur validé) `06 12 34 56 78`.
 - **Devenir chauffeur** : CIN, permis, véhicule, immatriculation, documents → validation dans Admin › Chauffeurs → abonnement → en ligne.
 - **Admin** : `admin@siir.ma` / `Siir2026!` (démo uniquement).
-- Production : brancher un fournisseur SMS (Firebase Phone Auth, Twilio Verify, Infobip…) et un backend qui génère et vérifie le code.
+- **Avec Firebase** (variables GitHub `FIREBASE_CONFIG` et `ADMIN_PHONES`) : vrais SMS via Firebase Phone Auth, données partagées en temps réel entre téléphones via Cloud Firestore (document `siir/state`), console admin réservée aux numéros listés. Règles Firestore : `firestore.rules`.
+- Phase pilote : toutes les données sont dans un seul document Firestore lisible par les utilisateurs connectés. Avant le lancement public : découper en collections (users, drivers, rides, payments) avec des règles par propriétaire et la logique sensible dans des Cloud Functions.
 
 ## Fonctionnalités
 - **Passager** : recherche de lieux, Maison/Travail, arrêt intermédiaire, 7 catégories (Eco, Confort, Femme, XL, Moto, Black, Colis), prix en DH, majoration, codes promo, paiement en espèces, courses planifiées, suivi live, PIN, chat, appel masqué, centre de sécurité & SOS, partage, notation, pourboire, reçu, historique, parrainage, support, **Siir Drive** (autopartage à la minute).

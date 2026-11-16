@@ -676,6 +676,7 @@ function seed(){
     me:{rider:'Amine Benjelloun',home:'maarif',work:'cfc',referral:'AMINE25',contacts:[{n:'Nour Benjelloun',p:'+212 6 62 11 22 33'}],settings:{shareAuto:true,pin:true,record:false,notif:true,lang:'fr'}},
     driver:{auto:false,dest:false,sim:true,sounds:true,bonusGoal:25,bonusDone:17},
   };
+  if(GMODE)db.zones.forEach(z=>{const r=REALZ[z.id];if(r)Object.assign(z,ll2w(r[0],r[1]))});
   const now=Date.now(), dIds=drivers.filter(d=>d.status!=='pending');
   drivers.forEach((d,i)=>{if(d.id==='d1'||d.status!=='approved'){d.sub={status:'none'};return}const pl=PLANS[i%3];const paidAt=now-(i%5+1)*864e5;d.sub={status:'active',plan:pl.id,method:['cmi','virement','wafacash'][i%3],expiresAt:paidAt+pl.days*864e5};db.subPayments.push({id:'P'+(5100+i),driverId:d.id,plan:pl.id,method:d.sub.method,amount:pl.price,ref:'SIIR-'+(482100+i*37),at:paidAt,status:'paid'})});
   db.subPayments.push({id:'P5099',driverId:'d9',plan:'month',method:'virement',amount:650,ref:'SIIR-481977',at:now-5*3600e3,status:'pending'},{id:'P5098',driverId:'d11',plan:'week',method:'wafacash',amount:180,ref:'SIIR-481902',at:now-26*3600e3,status:'pending'});
@@ -691,33 +692,40 @@ function seed(){
   return db;
 }
 let db=null, storeOK=true;
-function load(){const o=loadRaw();bindSession(o);return o}
+function load(){const o=FBMODE?(FBDB?JSON.parse(JSON.stringify(FBDB)):(db||seed())):loadRaw();bindSession(o);return o}
 function loadRaw(){
   if(storeOK){try{const s=localStorage.getItem(KEY);if(s){const o=JSON.parse(s);if(o&&o.v===2)return o}const n=seed();localStorage.setItem(KEY,JSON.stringify(n));return n}catch(e){storeOK=false}}
   return db||seed();
 }
-function save(){if(db.rides.length>220)db.rides=db.rides.slice(-220);if(storeOK){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){storeOK=false}}}
-function mutate(fn){db=load();const r=fn(db);if(r!==false)save();return r}
+function save(){if(db.rides.length>220)db.rides=db.rides.slice(-220);if(FBMODE){const snap=JSON.stringify(db);FBDB=JSON.parse(snap);fbPush(o=>{Object.keys(o).forEach(k=>delete o[k]);Object.assign(o,JSON.parse(snap))});return}if(storeOK){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){storeOK=false}}}
+function mutate(fn){db=load();const r=fn(db);if(r!==false){if(FBMODE){if(db.rides.length>220)db.rides=db.rides.slice(-220);FBDB=JSON.parse(JSON.stringify(db));fbPush(fn)}else save()}return r}
 /* ----- Comptes & session (par onglet ; le dernier compte reste mémorisé sur l'appareil) ----- */
 const SESS='siir-session';let SESSION_MEM=null;
-function getSession(){try{return JSON.parse(sessionStorage.getItem(SESS)||localStorage.getItem(SESS+'-last')||'null')}catch(e){return SESSION_MEM}}
-function setSession(v){SESSION_MEM=v;try{if(v){sessionStorage.setItem(SESS,JSON.stringify(v));localStorage.setItem(SESS+'-last',JSON.stringify(v))}else{sessionStorage.removeItem(SESS);localStorage.removeItem(SESS+'-last')}}catch(e){}}
+function getSession(){if(FBMODE){const u=FB.auth&&FB.auth.currentUser;const n=u&&normPhone(u.phoneNumber);return n?{phone:n}:null}try{return JSON.parse(sessionStorage.getItem(SESS)||localStorage.getItem(SESS+'-last')||'null')}catch(e){return SESSION_MEM}}
+function setSession(v){if(FBMODE){if(!v&&FB.auth)FB.auth.signOut();return}SESSION_MEM=v;try{if(v){sessionStorage.setItem(SESS,JSON.stringify(v));localStorage.setItem(SESS+'-last',JSON.stringify(v))}else{sessionStorage.removeItem(SESS);localStorage.removeItem(SESS+'-last')}}catch(e){}}
 const fullName=a=>a?(a.first+' '+a.last).trim():'';
 const fmtPhone=n=>'+212 '+String(n).replace(/(\d)(\d{2})(\d{2})(\d{2})(\d{2})/,'$1 $2 $3 $4 $5');
 const normPhone=v=>{let d=String(v||'').replace(/\D/g,'');if(d.startsWith('00212'))d=d.slice(5);else if(d.startsWith('212'))d=d.slice(3);if(d.startsWith('0'))d=d.slice(1);return /^[67]\d{8}$/.test(d)?d:null};
 function bindSession(o){
   if(!o)return;
+  if(!o.accounts&&FBMODE)o.accounts=[];
   if(!o.accounts){o.accounts=[{phone:'661234567',first:'Amine',last:'Benjelloun',email:'amine@exemple.ma',createdAt:Date.now()-280*864e5,driver:null},{phone:'612345678',first:'Youssef',last:'El Amrani',email:'',createdAt:Date.now()-400*864e5,driver:null}];const d1=o.drivers.find(x=>x.id==='d1');if(d1&&!d1.owner)d1.owner='612345678'}
   const s=getSession(),a=s&&o.accounts.find(x=>x.phone===s.phone);
   if(a){o.me.rider=fullName(a);o.me.phone=fmtPhone(a.phone);o.me.referral=(a.first||'SIIR').toUpperCase().replace(/[^A-Z]/g,'').slice(0,8)+'25'}
 }
+const isAdmin=()=>{const s=getSession();return !!s&&ADMIN_PHONES.includes(s.phone)};
 const curAccount=()=>{const s=getSession();return s&&db.accounts.find(a=>a.phone===s.phone)};
 const DSNAP=['n','car','plate','cats','rating','trips','status','docs','sub','x','y','earnToday','phone','cin','permis'];
+let MYD='d1';
+const DEFPREFS={auto:false,dest:false,sim:true,sounds:true,bonusGoal:25,bonusDone:0};
+const driverIdFor=acc=>!FBMODE&&acc.phone==='612345678'?'d1':'u'+acc.phone;
 function ensureDriverFor(acc){
-  mutate(d=>{const d1=d.drivers.find(x=>x.id==='d1');if(d1.owner===acc.phone)return false;
-    if(d1.owner){const prev=d.accounts.find(a=>a.phone===d1.owner);if(prev)prev.driver=Object.fromEntries(DSNAP.map(k=>[k,d1[k]]))}
-    if(acc.driver)Object.assign(d1,acc.driver);else Object.assign(d1,{n:fullName(acc),status:'none',sub:{status:'none'},car:'',plate:['','',''],cats:['eco'],rating:0,trips:0,earnToday:0,docs:{cin:'missing',permis:'missing',carte:'missing',assurance:'missing',vtc:'missing',casier:'missing'}});
-    d1.owner=acc.phone;d1.online=false;d1.phone=fmtPhone(acc.phone)});
+  MYD=driverIdFor(acc);
+  mutate(d=>{let rec=d.drivers.find(x=>x.id===MYD);let ch=false;
+    if(!rec){const c=PLACES[0];rec={id:MYD,owner:acc.phone,n:fullName(acc),phone:fmtPhone(acc.phone),status:'none',sub:{status:'none'},car:'',plate:['','',''],cats:['eco'],rating:0,trips:0,earnToday:0,online:false,x:c.x+(Math.random()-.5)*60,y:c.y+20,docs:{cin:'missing',permis:'missing',carte:'missing',assurance:'missing',vtc:'missing',casier:'missing'}};d.drivers.push(rec);ch=true}
+    if(!rec.owner){rec.owner=acc.phone;ch=true}
+    if(!rec.prefs){rec.prefs={...DEFPREFS,bonusDone:rec.id==='d1'?17:0};ch=true}
+    return ch});
 }
 db=load();
 const drv=id=>db.drivers.find(d=>d.id===id);
@@ -740,7 +748,7 @@ function completeRide(d,r){
   r.status='completed';r.t.done=Date.now();
   const me=d.drivers.find(x=>x.id===r.driverId);
   if(me){me.x=r.dest.x;me.y=r.dest.y;me.trips++;me.earnToday=(me.earnToday||0)+r.price}
-  if(r.driverId==='d1'){d.driver.bonusDone=Math.min(d.driver.bonusGoal,d.driver.bonusDone+1)}
+  if(me&&me.prefs){me.prefs.bonusDone=Math.min(me.prefs.bonusGoal,me.prefs.bonusDone+1)}
 }
 
 /* ---------- Carte (canvas) ---------- */
@@ -868,7 +876,7 @@ const REALF={c1:[33.5835,-7.6370],c2:[33.5900,-7.6420],c3:[33.5790,-7.6290],c4:[
 function applyRealGeo(){
   PLACES.forEach(p=>{const r=REAL[p.id];if(r)Object.assign(p,ll2w(r[0],r[1]))});
   FLEET.forEach(c=>{const r=REALF[c.id];if(r)Object.assign(c,ll2w(r[0],r[1]))});
-  KEY='siir-demo-db-v2-gmaps';db=load();
+  KEY='siir-demo-db-v2-gmaps';if(FBCFG)return;db=load();
   let ch=false;db.zones.forEach(z=>{const r=REALZ[z.id];if(r){const w=ll2w(r[0],r[1]);if(Math.abs(z.x-w.x)>1){Object.assign(z,w);ch=true}}});if(ch)save();
 }
 function decodePoly(str){let i=0,lat=0,lng=0;const out=[];while(i<str.length){for(const k of[0,1]){let b,sh=0,res=0;do{b=str.charCodeAt(i++)-63;res|=(b&31)<<sh;sh+=5}while(b>=32);const d=res&1?~(res>>1):res>>1;if(k===0)lat+=d;else lng+=d}out.push(ll2w(lat/1e5,lng/1e5))}return out}
@@ -961,20 +969,64 @@ function gmBanner(code,raw){
   b.querySelector('#gm-retry').onclick=()=>{try{sessionStorage.removeItem('siir-gm-err')}catch(x){}location.reload()};
   b.querySelector('#gm-close').onclick=()=>b.remove();
 }
+function start(){fbInit().then(()=>route())}
 function boot(){
-  if(!GKEY){route();return}
+  if(!GKEY){start();return}
   let saved=null;try{saved=JSON.parse(sessionStorage.getItem('siir-gm-err')||'null')}catch(e){}
-  if(saved){route();gmBanner(saved.code,saved.raw);return}
+  if(saved){start();gmBanner(saved.code,saved.raw);return}
   let done=false,lastCode='',lastRaw='';
   const sniff=orig=>function(...a){try{const t=a.map(String).join(' ');const m=t.match(/([A-Za-z]+MapError)/);if(m){lastCode=m[1];lastRaw=m[1]}else if(/Google Maps JavaScript API/i.test(t)&&!lastRaw)lastRaw=t.slice(0,180)}catch(e){}return orig.apply(console,a)};
   console.error=sniff(console.error);console.warn=sniff(console.warn);
   const fail=code=>{try{sessionStorage.setItem('siir-gm-err',JSON.stringify({code,raw:lastRaw}))}catch(e){}location.reload()};
   window.gm_authFailure=()=>setTimeout(()=>fail(lastCode||'auth'),300);
-  window.__siirGm=()=>{if(done)return;done=true;GMODE=true;applyRealGeo();route()};
+  window.__siirGm=()=>{if(done)return;done=true;GMODE=true;applyRealGeo();start()};
   const sc=document.createElement('script');sc.async=true;sc.src='https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(GKEY)+'&v=weekly&language=fr&region=MA&callback=__siirGm';
-  sc.onerror=()=>{if(!done){done=true;route();gmBanner('script')}};document.head.appendChild(sc);
-  setTimeout(()=>{if(!done){done=true;route();gmBanner('timeout')}},12000);
+  sc.onerror=()=>{if(!done){done=true;start();gmBanner('script')}};document.head.appendChild(sc);
+  setTimeout(()=>{if(!done){done=true;start();gmBanner('timeout')}},12000);
 }
+
+
+/* =========================================================
+   FIREBASE (actif quand window.SIIR_FIREBASE est injecté au déploiement)
+   - Authentification par SMS (Firebase Phone Auth)
+   - Données partagées en temps réel entre téléphones (Cloud Firestore)
+   ========================================================= */
+const FBCFG=(typeof window!=='undefined'&&window.SIIR_FIREBASE)||null;
+const ADMIN_PHONES=String((typeof window!=='undefined'&&window.SIIR_ADMIN_PHONES)||'').split(/[,;\s]+/).map(normPhone).filter(Boolean);
+var FBMODE=false,FBDB=null;const FB={};
+function loadScript(src){return new Promise((ok,ko)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=ko;document.head.appendChild(s)})}
+function fbInit(){
+  if(!FBCFG||FB.ready)return Promise.resolve();
+  const V='10.12.2',B='https://www.gstatic.com/firebasejs/'+V+'/';
+  return loadScript(B+'firebase-app-compat.js').then(()=>Promise.all([loadScript(B+'firebase-auth-compat.js'),loadScript(B+'firebase-firestore-compat.js')])).then(()=>{
+    firebase.initializeApp(FBCFG);FB.auth=firebase.auth();FB.auth.languageCode='fr';FB.fs=firebase.firestore();FB.ref=FB.fs.collection('siir').doc('state');FBMODE=true;FB.ready=true;
+    return new Promise(res=>{let first=true;FB.auth.onAuthStateChanged(u=>{if(u)fbSubscribe().then(()=>{if(first){first=false;res()}});else{fbUnsub();if(first){first=false;res()}else if(mode&&mode!=='accueil')route(true)}})});
+  }).catch(e=>{console.error('Firebase indisponible',e);FBMODE=false;toastLater('Connexion au serveur impossible : mode démo hors ligne.')});
+}
+function toastLater(m){setTimeout(()=>{try{toast(m,'r')}catch(e){}},1500)}
+function fbSubscribe(){
+  if(FB.unsub)return FB.firstData||Promise.resolve();
+  FB.firstData=new Promise(res=>{let done=false;const fin=()=>{if(!done){done=true;res()}};setTimeout(fin,9000);
+    FB.unsub=FB.ref.onSnapshot(snap=>{
+      if(!snap.exists){const o=seed();FBDB=o;db=load();FB.ref.set({json:JSON.stringify(o),at:firebase.firestore.FieldValue.serverTimestamp()}).catch(e=>console.error(e));fin();return}
+      try{FBDB=JSON.parse(snap.data().json)}catch(e){return}
+      db=load();fin();onRemote();
+    },err=>{console.error('Firestore',err);toastLater('Accès aux données refusé. Vérifiez les règles Firestore.');fin()});});
+  return FB.firstData;
+}
+function fbUnsub(){if(FB.unsub){FB.unsub();FB.unsub=null;FB.firstData=null}FBDB=null}
+let FBQ=Promise.resolve();
+function fbPush(fn){
+  FBQ=FBQ.then(()=>FB.fs.runTransaction(t=>t.get(FB.ref).then(snap=>{const o=snap.exists?JSON.parse(snap.data().json):seed();bindSession(o);if(fn(o)===false)return;if(o.rides&&o.rides.length>220)o.rides=o.rides.slice(-220);t.set(FB.ref,{json:JSON.stringify(o),at:firebase.firestore.FieldValue.serverTimestamp()})}))).catch(e=>{console.error('Écriture refusée',e);toastLater('Enregistrement impossible : '+(e.code||e.message))});
+}
+function onRemote(){try{if(mode==='passager'&&host&&$('#sheet',host))riderTick();else if(mode==='chauffeur'&&host&&$('#sheet',host))driverTick()}catch(e){console.error(e)}}
+function recaptcha(){
+  if(!$('#recap')){const d=document.createElement('div');d.id='recap';document.body.appendChild(d)}
+  if(!FB.rv)FB.rv=new firebase.auth.RecaptchaVerifier('recap',{size:'invisible'});
+  return FB.rv;
+}
+const FB_ERR={'auth/invalid-phone-number':'Numéro invalide.','auth/too-many-requests':'Trop de tentatives depuis cet appareil. Réessayez plus tard.','auth/quota-exceeded':'Quota de SMS atteint. Réessayez plus tard.','auth/invalid-verification-code':'Code incorrect.','auth/code-expired':'Ce code a expiré. Demandez un nouveau code.','auth/captcha-check-failed':'Vérification anti-robot échouée. Rechargez la page.','auth/unauthorized-domain':'Ce site n\'est pas autorisé dans Firebase (Authentication › Paramètres › Domaines autorisés).','auth/operation-not-allowed':'La connexion par téléphone n\'est pas activée dans Firebase.','auth/billing-not-enabled':'Le forfait Blaze (facturation) doit être activé dans Firebase pour envoyer des SMS.'};
+const fbErr=e=>FB_ERR[e&&e.code]||('Erreur : '+((e&&(e.code||e.message))||'inconnue'));
 
 /* ---------- UI communs ---------- */
 let host=null; // conteneur des toasts/modales courant
@@ -996,7 +1048,8 @@ const AU={step:'welcome',flow:'signup',phone:'',code:'',exp:0,tries:0,resendAt:0
 let auTimer=null;
 function mountAuth(root,target){
   AU.target=target;if(AU.step==='done')AU.step='welcome';
-  root.innerHTML=`<div class="stage">${devbar(target==='chauffeur'?'c':'p')}<div class="phone" id="phone"><div class="auth" id="auth"></div><div class="toasts"></div></div></div>`;
+  if(FBMODE&&FB.auth.currentUser&&!curAccount()){AU.phone=normPhone(FB.auth.currentUser.phoneNumber)||'';AU.step='profile'}
+  root.innerHTML=`<div class="stage">${target==='admin'?'':devbar(target==='chauffeur'?'c':'p')}<div class="phone" id="phone"><div class="auth" id="auth"></div><div class="toasts"></div></div></div>`;
   host=$('#phone',root);renderAuth();clearInterval(auTimer);auTimer=setInterval(()=>{const c=$('#au-cd',host);if(c){const l=Math.ceil((AU.resendAt-Date.now())/1000);if(l<=0)renderAuth();else c.textContent=l}},500);
 }
 function renderAuth(){
@@ -1006,7 +1059,7 @@ function renderAuth(){
     h=`<div class="auth-hero">${markSVG()}${wordmark()}<div><h1>Une seule app pour rouler et conduire</h1><p class="sub" style="margin-top:8px">Inscrivez-vous avec votre numéro de téléphone. Partout au Maroc.</p></div></div>
     <button class="btn primary block" data-act="au-start" data-f="signup">Créer un compte</button>
     <button class="btn ghost block" data-act="au-start" data-f="login">J'ai déjà un compte</button>
-    <div class="demo"><b>Comptes de démonstration</b><button data-act="au-demo" data-p="661234567">Amine · passager · 06 61 23 45 67</button><button data-act="au-demo" data-p="612345678">Youssef · chauffeur validé · 06 12 34 56 78</button><span>Ou créez votre propre compte avec n'importe quel numéro marocain (06 ou 07).</span></div>`;
+    ${FBMODE?'<p class="sub" style="text-align:center;font-size:12.5px">Vous recevrez un vrai SMS de vérification.</p>':`<div class="demo"><b>Comptes de démonstration</b><button data-act="au-demo" data-p="661234567">Amine · passager · 06 61 23 45 67</button><button data-act="au-demo" data-p="612345678">Youssef · chauffeur validé · 06 12 34 56 78</button><span>Ou créez votre propre compte avec n'importe quel numéro marocain (06 ou 07).</span></div>`}`;
   }else if(AU.step==='phone'){
     const su=AU.flow==='signup';
     h=`<div class="auth-top">${back('welcome')}<span class="eyebrow">${su?'Inscription · 1/3':'Connexion'}</span><span style="width:44px"></span></div>
@@ -1014,16 +1067,16 @@ function renderAuth(){
     <form id="au-phone-f" class="stack"><div class="phonefield"><span class="cc">🇲🇦 +212</span><input class="input" id="au-phone" inputmode="tel" autocomplete="tel-national" placeholder="6 12 34 56 78" value="${esc(AU.phone)}" maxlength="16" aria-label="Numéro de téléphone"></div>
     ${su?`<label class="check"><input type="checkbox" id="au-cgu" ${AU.cgu?'checked':''}><span>J'accepte les conditions d'utilisation et la politique de confidentialité de SIIR! (loi 09-08).</span></label>`:''}
     ${AU.err?`<div class="err">${AU.err}</div>`:''}
-    <button class="btn primary block">Recevoir le code par SMS</button></form>`;
+    <button class="btn primary block" ${AU.busy?'disabled':''}>${AU.busy?'Envoi du SMS…':'Recevoir le code par SMS'}</button></form>`;
   }else if(AU.step==='otp'){
     const left=Math.ceil((AU.resendAt-Date.now())/1000);
     h=`<div class="auth-top">${back('phone')}<span class="eyebrow">${AU.flow==='signup'?'Inscription · 2/3':'Connexion'}</span><span style="width:44px"></span></div>
     <h1>Entrez le code reçu</h1><p class="sub">Code à 6 chiffres envoyé par SMS au <b style="color:var(--fg)">${fmtPhone(AU.phone)}</b>. <button style="color:var(--green-hi);font-weight:800" data-act="au-go" data-s="phone">Modifier</button></p>
     <form id="au-otp-f" class="stack"><input class="input otpin" id="au-otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" aria-label="Code de vérification">
     ${AU.err?`<div class="err">${AU.err}</div>`:''}
-    <button class="btn primary block">Vérifier</button></form>
-    <p class="sub" style="text-align:center">${left>0?`Renvoyer le code dans <b class="mono" id="au-cd">${left}</b> s`:`<button style="color:var(--green-hi);font-weight:800" data-act="au-resend">Renvoyer le code</button>`}</p>
-    <p class="dim" style="font-size:12px;text-align:center;margin:0">Version test : le SMS est simulé et s'affiche en haut de l'écran. Touchez-le pour remplir le code.</p>`;
+    <button class="btn primary block" ${AU.busy?'disabled':''}>${AU.busy?'Vérification…':'Vérifier'}</button></form>
+    <p class="sub" style="text-align:center">${left>0?`Renvoyer le code dans <b class="mono" id="au-cd">${left}</b> s`:`<button type="button" style="color:var(--green-hi);font-weight:800" data-act="au-resend">Renvoyer le code</button>`}</p>
+    ${FBMODE?'':`<p class="dim" style="font-size:12px;text-align:center;margin:0">Version test : le SMS est simulé et s'affiche en haut de l'écran. Touchez-le pour remplir le code.</p>`}`;
   }else if(AU.step==='profile'){
     h=`<div class="auth-top"><span style="width:44px"></span><span class="eyebrow">Inscription · 3/3</span><span style="width:44px"></span></div>
     <h1>Faisons connaissance</h1><p class="sub">Votre prénom est visible par le chauffeur pendant la course.</p>
@@ -1042,6 +1095,7 @@ function auSendPhone(){
   const v=$('#au-phone',host).value;AU.phone=v;const n=normPhone(v);
   if(AU.flow==='signup')AU.cgu=$('#au-cgu',host).checked;
   if(!n){AU.err='Numéro invalide. Saisissez un mobile marocain, par exemple 6 12 34 56 78.';return renderAuth()}
+  if(FBMODE){if(AU.flow==='signup'&&!AU.cgu){AU.err='Acceptez les conditions d\'utilisation pour continuer.';return renderAuth()}AU.phone=n;return auSendCode()}
   const exists=db.accounts.some(a=>a.phone===n);
   if(AU.flow==='signup'&&exists){AU.err='Ce numéro a déjà un compte SIIR!. <button style="color:var(--green-hi);font-weight:800" data-act="au-start" data-f="login">Se connecter</button>';return renderAuth()}
   if(AU.flow==='login'&&!exists){AU.err='Aucun compte avec ce numéro. <button style="color:var(--green-hi);font-weight:800" data-act="au-start" data-f="signup">Créer un compte</button>';return renderAuth()}
@@ -1049,11 +1103,13 @@ function auSendPhone(){
   AU.phone=n;auSendCode();
 }
 function auSendCode(){
+  if(FBMODE){AU.err='';AU.busy=true;renderAuth();FB.auth.signInWithPhoneNumber('+212'+AU.phone,recaptcha()).then(c=>{FB.conf=c;AU.busy=false;AU.step='otp';AU.resendAt=Date.now()+30e3;AU.err='';renderAuth();mutateLater({to:fmtPhone(AU.phone),kind:AU.flow==='signup'?'Inscription':'Connexion'})}).catch(e=>{AU.busy=false;AU.err=fbErr(e);AU.step='phone';try{FB.rv&&FB.rv.clear()}catch(x){}FB.rv=null;renderAuth()});return}
   AU.code=String(Math.floor(100000+Math.random()*900000));AU.exp=Date.now()+5*60e3;AU.tries=0;AU.resendAt=Date.now()+30e3;AU.err='';AU.step='otp';renderAuth();
-  mutate(d=>{d.smsLog=d.smsLog||[];d.smsLog.unshift({to:fmtPhone(AU.phone),t:Date.now(),kind:AU.flow==='signup'?'Inscription':'Connexion'});d.smsLog=d.smsLog.slice(0,50)});
+  mutateLater({to:fmtPhone(AU.phone),kind:AU.flow==='signup'?'Inscription':'Connexion'});
   setTimeout(()=>{$('.sms',host)?.remove();const n=document.createElement('button');n.className='sms';n.innerHTML=`<span class="si">${ic('chat','sm')}</span><span><small>MESSAGES · SIIR! · maintenant</small><b class="mono">${AU.code}</b> est votre code de vérification SIIR!. Valable 5 minutes. Ne le communiquez à personne.</span>`;n.onclick=()=>{const o=$('#au-otp',host);if(o){o.value=AU.code;auVerify()}n.remove()};host.appendChild(n);setTimeout(()=>n.remove(),15000)},1400);
 }
 function auVerify(){
+  if(FBMODE){const v=($('#au-otp',host)?.value||'').trim();if(v.length!==6||AU.busy)return;AU.busy=true;FB.conf.confirm(v).then(()=>fbSubscribe()).then(()=>{AU.busy=false;db=load();const ex=db.accounts.some(a=>a.phone===AU.phone);if(ex)return auFinish(AU.phone,false);AU.step='profile';AU.err=AU.flow==='login'?'Nouveau sur SIIR! ? Complétez votre profil pour créer votre compte.':'';renderAuth()}).catch(e=>{AU.busy=false;AU.err=fbErr(e);renderAuth()});return}
   const v=($('#au-otp',host)?.value||'').trim();
   if(Date.now()>AU.exp){AU.err='Ce code a expiré. Demandez un nouveau code.';return renderAuth()}
   if(AU.tries>=5){AU.err='Trop de tentatives. Demandez un nouveau code.';return renderAuth()}
@@ -1066,9 +1122,11 @@ function auCreate(){
   AU.first=$('#au-first',host).value.trim();AU.last=$('#au-last',host).value.trim();AU.email=$('#au-email',host).value.trim();
   if(AU.first.length<2||AU.last.length<2){AU.err='Indiquez votre prénom et votre nom.';return renderAuth()}
   if(AU.email&&!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(AU.email)){AU.err='Adresse e-mail invalide.';return renderAuth()}
-  mutate(d=>{d.accounts.push({phone:AU.phone,first:AU.first,last:AU.last,email:AU.email,createdAt:Date.now(),driver:null});d.riders.unshift({n:AU.first+' '+AU.last,phone:fmtPhone(AU.phone),trips:0,rating:5,status:'active',since:new Date().toISOString().slice(0,7)})});
+  const nu={phone:AU.phone,first:AU.first,last:AU.last,email:AU.email};
+  mutate(d=>{if(d.accounts.some(a=>a.phone===nu.phone))return;d.accounts.push({...nu,createdAt:Date.now(),driver:null});d.riders.unshift({n:nu.first+' '+nu.last,phone:fmtPhone(nu.phone),trips:0,rating:5,status:'active',since:new Date().toISOString().slice(0,7)})});
   auFinish(AU.phone,true);
 }
+function mutateLater(entry){setTimeout(()=>{if(FBMODE&&!FB.auth.currentUser)return;mutate(d=>{d.smsLog=d.smsLog||[];d.smsLog.unshift({...entry,t:Date.now()});d.smsLog=d.smsLog.slice(0,50)})},0)}
 function auFinish(phone,isNew){
   setSession({phone,at:Date.now()});db=load();const a=curAccount();
   Object.assign(AU,{step:'done',phone:'',code:'',first:'',last:'',email:'',cgu:false,err:''});clearInterval(auTimer);
@@ -1076,11 +1134,11 @@ function auFinish(phone,isNew){
 }
 function confirmLogout(){openModal(`<h3>Se déconnecter ?</h3><p class="muted" style="margin:0">Vous devrez saisir un code reçu par SMS pour vous reconnecter.</p><div class="row"><button class="btn ghost" style="flex:1" data-act="r-x">Annuler</button><button class="btn red" style="flex:1" data-act="au-logout">Se déconnecter</button></div>`)}
 Object.assign(ACTS,{
- 'au-start'(el){AU.flow=el.dataset.f;AU.step='phone';AU.err='';renderAuth()},
+ 'au-start'(el){AU.flow=el.dataset.f;AU.busy=false;AU.step='phone';AU.err='';renderAuth()},
  'au-go'(el){AU.step=el.dataset.s;AU.err='';renderAuth()},
  'au-resend'(){auSendCode();toast('Nouveau code envoyé','', 'chat')},
  'au-demo'(el){AU.flow='login';AU.phone=el.dataset.p;auSendCode()},
- 'au-logout'(){closeModal();if(mode==='chauffeur'&&meD().online)mutate(d=>{d.drivers.find(x=>x.id==='d1').online=false});setSession(null);AU.step='welcome';route(true)},
+ 'au-logout'(){closeModal();if(mode==='chauffeur'&&meD().online)mutate(d=>{d.drivers.find(x=>x.id===MYD).online=false});setSession(null);AU.step='welcome';if(!FBMODE)route(true)},
  'r-logout'(){ACTS['r-close']?.();ACTS['d-close']?.();confirmLogout()},
 });
 
@@ -1089,7 +1147,8 @@ Object.assign(ACTS,{
    ========================================================= */
 const R={screen:'home',pickup:'maarif',dest:null,stop:null,showStop:false,field:'dest',q:'',cat:'eco',pay:'cash',promo:null,schedule:null,svc:'ride',rate:0,tip:0,tags:[],sig:'',rental:null,carSel:null,lastChatN:0};
 let rMap=null,rTimer=null;
-const rideMine=()=>db.rides.find(r=>r.origin==='rider'&&ACTIVE.includes(r.status))||null;
+const mine=r=>r.origin==='rider'&&(!r.riderPhone||r.riderPhone===db.me.phone);
+const rideMine=()=>db.rides.find(r=>mine(r)&&ACTIVE.includes(r.status))||null;
 const rideById=id=>db.rides.find(r=>r.id===id);
 function placeOf(id){return PL[id]}
 function rQuoteAll(){
@@ -1110,7 +1169,7 @@ function mountRider(root){
   host=$('#phone',root);
   rMap=makeMap($('#map',root),{scene:riderScene,top:64,ambient:18});
   const cur=rideMine();if(cur){R.screen=cur.status==='searching'?'searching':'ride'}
-  else{const done=db.rides.find(r=>r.origin==='rider'&&r.status==='completed'&&!r.rated&&Date.now()-r.t.done<10*60e3);if(done){R.screen='rate';R.rateId=done.id}}
+  else{const done=db.rides.find(r=>mine(r)&&r.status==='completed'&&!r.rated&&Date.now()-r.t.done<10*60e3);if(done){R.screen='rate';R.rateId=done.id}}
   renderRider();clearInterval(rTimer);rTimer=setInterval(riderTick,500);
   if(GMODE)riderLocate(false);
 }
@@ -1278,14 +1337,14 @@ function riderTick(){
 }
 function riderSim(){
   const now=Date.now();
-  const need=db.rides.some(r=>r.origin==='rider'&&(r.status==='searching'||(r.sim==='auto'&&['accepted','arrived','ongoing'].includes(r.status))||(r.sim==='auto'&&r.chat&&r.chat.length&&r.chat[r.chat.length-1].from==='rider')));
+  const need=db.rides.some(r=>mine(r)&&(r.status==='searching'||(r.sim==='auto'&&['accepted','arrived','ongoing'].includes(r.status))||(r.sim==='auto'&&r.chat&&r.chat.length&&r.chat[r.chat.length-1].from==='rider')));
   if(!need)return;
   mutate(d=>{let ch=false;
-    d.rides.forEach(r=>{if(r.origin!=='rider')return;
+    d.rides.forEach(r=>{if(!(r.origin==='rider'&&(!r.riderPhone||r.riderPhone===d.me.phone)))return;
       if(r.status==='searching'){
-        const realOnline=d.drivers.find(x=>x.id==='d1').online&&d.drivers.find(x=>x.id==='d1').cats.includes(r.cat)&&!(r.declined||[]).includes('d1');
+        const realOnline=d.drivers.some(x=>x.owner&&x.online&&x.status==='approved'&&x.cats.includes(r.cat)&&!(r.declined||[]).includes(x.id));
         if(now-r.t.created>(realOnline?20000:6500)){
-          const pool=d.drivers.filter(x=>x.status==='approved'&&x.id!=='d1'&&x.cats.includes(r.cat));const dr=pool.sort((a,b)=>Math.hypot(a.x-r.pickup.x,a.y-r.pickup.y)-Math.hypot(b.x-r.pickup.x,b.y-r.pickup.y))[0]||d.drivers[1];
+          const pool=d.drivers.filter(x=>x.status==='approved'&&!x.owner&&x.cats.includes(r.cat));const dr=pool.sort((a,b)=>Math.hypot(a.x-r.pickup.x,a.y-r.pickup.y)-Math.hypot(b.x-r.pickup.x,b.y-r.pickup.y))[0]||d.drivers[1];
           let sx=r.pickup.x+(Math.random()<.5?-1:1)*(70+Math.random()*80),sy=r.pickup.y+40+Math.random()*90;if(!GMODE){sx=clamp(sx,20,980);sy=clamp(sy,coastY(sx)+30,980)}
           Object.assign(r,{status:'accepted',driverId:dr.id,sim:'auto',dstart:{x:sx,y:sy},t:{...r.t,phase:now}});ch=true;
         }
@@ -1302,7 +1361,7 @@ function riderSim(){
 function createRide(){
   const qa=rQuoteAll();const a=placeOf(R.pickup),b=placeOf(R.dest),s=R.stop?placeOf(R.stop):null;const q=qa.q[R.cat];
   const now=Date.now();
-  const ride={id:'R'+uid(),origin:'rider',riderName:db.me.rider,riderRating:4.92,pickup:{n:a.n,x:a.x,y:a.y},dest:{n:b.n,x:b.x,y:b.y},stop:s?{n:s.n,x:s.x,y:s.y}:null,cat:R.cat,km:qa.km,min:qa.min,price:q.total,surge:qa.surge,promo:qa.promo?qa.promo.code:null,payment:R.pay,status:R.schedule?'scheduled':'searching',driverId:null,sim:null,t:{created:now,phase:now,at:R.schedule||null},dur:{arrive:15000,trip:clamp(9000+qa.km*1400,12000,30000)},etaMin:CATS[R.cat].eta,pin:String(1000+Math.floor(Math.random()*9000)),chat:[],declined:[],city:'Casablanca'};
+  const ride={id:'R'+uid(),origin:'rider',riderName:db.me.rider,riderPhone:db.me.phone,riderRating:4.92,pickup:{n:a.n,x:a.x,y:a.y},dest:{n:b.n,x:b.x,y:b.y},stop:s?{n:s.n,x:s.x,y:s.y}:null,cat:R.cat,km:qa.km,min:qa.min,price:q.total,surge:qa.surge,promo:qa.promo?qa.promo.code:null,payment:R.pay,status:R.schedule?'scheduled':'searching',driverId:null,sim:null,t:{created:now,phase:now,at:R.schedule||null},dur:{arrive:15000,trip:clamp(9000+qa.km*1400,12000,30000)},etaMin:CATS[R.cat].eta,pin:String(1000+Math.floor(Math.random()*9000)),chat:[],declined:[],city:'Casablanca'};
   mutate(d=>{d.rides.push(ride);if(ride.promo){const p=d.promos.find(x=>x.code===ride.promo);if(p)p.uses++}});
   if(R.schedule){toast(`Course planifiée pour ${dfmt(R.schedule)}`,'', 'calendar');R.schedule=null;R.dest=null;R.stop=null;R.screen='home';renderRider();return}
   R.rideId=ride.id;R.lastChatN=0;R.screen='searching';renderRider();
@@ -1336,7 +1395,7 @@ Object.assign(ACTS,{
  'r-cancel'(){const r=rideById(R.rideId);if(!r)return;const fee=r.status!=='searching'&&Date.now()-r.t.phase>120e3?10:0;
    openModal(`<h3>Annuler la course ?</h3><p class="muted" style="margin:0">${fee?`Des frais d'annulation de ${money(fee)} s'appliquent car le chauffeur est en route depuis plus de 2 min.`:'L\'annulation est gratuite pour le moment.'}</p><div class="row"><button class="btn ghost" style="flex:1" data-act="r-x">Garder</button><button class="btn red" style="flex:1" data-act="r-cancelok">Annuler la course</button></div>`)},
  'r-x'(){closeModal()},
- 'r-cancelok'(){mutate(d=>{const r=d.rides.find(x=>x.id===R.rideId);if(r){r.status='cancelled';r.t.done=Date.now()}});closeModal();R.rideId=null;R.screen='home';R.dest=null;toast('Course annulée','r');renderRider()},
+ 'r-cancelok'(){const rid=R.rideId;mutate(d=>{const r=d.rides.find(x=>x.id===rid);if(r){r.status='cancelled';r.t.done=Date.now()}});closeModal();R.rideId=null;R.screen='home';R.dest=null;toast('Course annulée','r');renderRider()},
  'r-chat'(){openModal(`<div class="between"><h3>Messages</h3><button class="iconbtn" data-act="r-x" aria-label="Fermer">${ic('close')}</button></div><div class="chat" id="chatbox"></div><div class="chips scroll">${['J\'arrive !','Je suis devant','Pouvez-vous attendre 2 min ?','Merci 🙏'].map(t=>`<button class="chip" data-act="r-qmsg" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div><form class="chatbar" id="chatform"><input class="input" id="chat-in" placeholder="Écrire un message…" autocomplete="off"><button class="btn primary sm" aria-label="Envoyer">${ic('send')}</button></form>`);renderChat();$('#chatform',host).addEventListener('submit',e=>{e.preventDefault();const v=$('#chat-in',host).value.trim();if(v)sendChat(v);$('#chat-in',host).value=''})},
  'r-qmsg'(el){sendChat(el.dataset.t)},
  'r-call'(){const r=rideById(R.rideId);const d=drv(r.driverId);openModal(`<h3>Appeler ${esc(d.n.split(' ')[0])}</h3><p class="muted" style="margin:0">Appel masqué : votre numéro n'est pas partagé. Numéro relais :</p><div class="big-num mono" style="font-size:24px;user-select:all">+212 5 22 00 47 47</div><p class="dim" style="margin:0;font-size:12px">Code d'extension : ${esc(r.pin)}</p><button class="btn ghost block" data-act="r-copy" data-t="+212522004747">${ic('copy')}Copier le numéro</button>`)},
@@ -1348,7 +1407,7 @@ Object.assign(ACTS,{
  'r-star'(el){R.rate=+el.dataset.v;renderRider()},
  'r-tag'(el){const t=el.dataset.t;R.tags=R.tags.includes(t)?R.tags.filter(x=>x!==t):[...R.tags,t];renderRider()},
  'r-tip'(el){R.tip=+el.dataset.v;renderRider()},
- 'r-ratesend'(){mutate(d=>{const r=d.rides.find(x=>x.id===R.rateId);if(r){r.rated=true;r.rating=R.rate;r.tip=R.tip;r.tags=R.tags;const dr=d.drivers.find(x=>x.id===r.driverId);if(dr&&R.tip)dr.earnToday+=R.tip}});toast('Merci ! Votre avis aide la communauté Siir.','', 'star');R.screen='home';R.dest=null;R.stop=null;R.showStop=false;R.promo=null;renderRider()},
+ 'r-ratesend'(){const rv={id:R.rateId,rate:R.rate,tip:R.tip,tags:[...R.tags]};mutate(d=>{const r=d.rides.find(x=>x.id===rv.id);if(r){r.rated=true;r.rating=rv.rate;r.tip=rv.tip;r.tags=rv.tags;const dr=d.drivers.find(x=>x.id===r.driverId);if(dr&&rv.tip)dr.earnToday+=rv.tip}});toast('Merci ! Votre avis aide la communauté Siir.','', 'star');R.screen='home';R.dest=null;R.stop=null;R.showStop=false;R.promo=null;renderRider()},
  'r-car'(el){R.carSel=el.dataset.id;renderRider()},
  'r-reserve'(){R.rental={carId:R.carSel,stage:'reserved',t0:Date.now()};R.screen='rental';renderRider();toast('Voiture réservée pendant 15 minutes','', 'key')},
  'r-rentcancel'(){R.rental=null;R.screen='drive';renderRider()},
@@ -1363,7 +1422,7 @@ Object.assign(ACTS,{
  'r-topup'(el){const v=+el.dataset.v;mutate(d=>{d.me.wallet+=v});toast(`Portefeuille rechargé de ${money(v)}`,'', 'wallet');riderPage('paiement')},
  'r-addcard'(){toast('Ajout de carte : passerelle CMI à connecter en production','', 'card')},
  'r-reset'(){openModal(`<h3>Réinitialiser la démo ?</h3><p class="muted" style="margin:0">Toutes les courses, réglages et codes créés pendant le test seront remplacés par les données d'origine, dans tous les onglets.</p><div class="row"><button class="btn ghost" style="flex:1" data-act="r-x">Annuler</button><button class="btn red" style="flex:1" data-act="r-resetok">Réinitialiser</button></div>`)},
- 'r-resetok'(){try{localStorage.removeItem(KEY)}catch(e){}db=seed();save();closeModal();route(true)},
+ 'r-resetok'(){if(FBMODE){if(!isAdmin()){toast('Réservé aux administrateurs','r');return}db=seed();save();closeModal();route(true);return}try{localStorage.removeItem(KEY)}catch(e){}db=seed();save();closeModal();route(true)},
  'r-ticket'(){const s=$('#tk-s',host).value.trim(),b=$('#tk-b',host).value.trim();if(!s||!b){toast('Indiquez un sujet et une description','r');return}mutate(d=>{d.tickets.unshift({id:'T-'+(1043+d.tickets.length),from:d.me.rider,role:'Passager',subj:s,body:b,status:'ouvert',t:Date.now()})});toast('Demande envoyée. Réponse sous 2 h en moyenne.','', 'help');riderPage('aide')},
  'r-faq'(el){const n=el.nextElementSibling;n.hidden=!n.hidden},
 });
@@ -1404,8 +1463,9 @@ const statusFR=s=>({completed:'Terminée',cancelled:'Annulée',searching:'Recher
    ========================================================= */
 const D={plan:'month',method:'cmi',req:null,reqT:0,lastSim:0,rideId:null,sig:'',pin:'',rateFor:null,rateV:0,lastChatN:0};
 let dMap=null,dTimer=null;
-const meD=()=>db.drivers.find(x=>x.id==='d1');
-const myRide=()=>db.rides.find(r=>r.driverId==='d1'&&['accepted','arrived','ongoing'].includes(r.status));
+const meD=()=>db.drivers.find(x=>x.id===MYD);
+const DP=()=>{const m=meD();return (m&&m.prefs)||DEFPREFS};
+const myRide=()=>db.rides.find(r=>r.driverId===MYD&&['accepted','arrived','ongoing'].includes(r.status));
 function mountDriver(root){
   const acc=curAccount();if(!acc)return mountAuth(root,'chauffeur');ensureDriverFor(acc);db=load();
   root.innerHTML=`<div class="stage">${devbar('c')}<div class="phone" id="phone">
@@ -1418,11 +1478,11 @@ function mountDriver(root){
   dMap=makeMap($('#map',root),{scene:driverScene,top:64,ambient:22,heat:true,seed:9});
   const r=myRide();D.rideId=r?r.id:null;D.req=null;
   renderDriver();clearInterval(dTimer);dTimer=setInterval(driverTick,500);
-  if(GMODE&&!myRide())geoNow(w=>{mutate(d=>{Object.assign(d.drivers.find(x=>x.id==='d1'),w)});if(dMap)dMap.focus(w.x,w.y,1.6)});
+  if(GMODE&&!myRide())geoNow(w=>{mutate(d=>{Object.assign(d.drivers.find(x=>x.id===MYD),w)});if(dMap)dMap.focus(w.x,w.y,1.6)});
 }
 function todayEarn(){return 286+(meD()?.earnToday||0)}
-const myPay=p=>p.driverId==='d1'&&(p.owner||'')===(meD().owner||'');
-function subPending(id='d1'){return db.subPayments.find(p=>(id==='d1'?myPay(p):p.driverId===id)&&p.status==='pending')}
+const myPay=p=>p.driverId===MYD;
+function subPending(id=MYD){return db.subPayments.find(p=>(id===MYD?myPay(p):p.driverId===id)&&p.status==='pending')}
 function driverStatusCard(me){
   if(me.status==='pending')return `<div style="display:grid;gap:6px;text-align:center;justify-items:center"><span class="badge a">Dossier en cours de vérification</span><div class="status-h">Merci ${esc(me.n.split(' ')[0])}, votre dossier est envoyé</div><small class="muted">Notre équipe vérifie vos documents sous 48 h. Vous pourrez ensuite choisir votre abonnement et passer en ligne.</small></div><div class="card"><div class="list"><div class="li"><span class="tx"><b>${esc(me.car)}</b><small>${esc(CATS[me.cats[0]].n)}</small></span>${plate(me.plate)}</div></div></div><small class="dim" style="text-align:center">Démo : validez le dossier dans Admin › Chauffeurs, cet écran se met à jour tout seul.</small>`;
   if(me.status==='suspended')return `<div style="display:grid;gap:6px;text-align:center"><span class="badge r" style="justify-self:center">Compte chauffeur suspendu</span><div class="status-h">Contactez le support SIIR!</div><small class="muted">Assistance chauffeurs : +212 5 22 00 47 00</small></div>`;
@@ -1449,7 +1509,8 @@ function driverRegisterPage(){
     if(!/^[A-Z]{1,2}\d{4,7}$/i.test(g('dr-cin'))){err.textContent='N° de CIN invalide (ex. BE123456).';err.hidden=false;return}
     if(!/^\d{3,5}$/.test(g('dr-p1'))||!/^\d{1,2}$/.test(g('dr-p3'))){err.textContent='Immatriculation invalide (ex. 12345 | أ | 6).';err.hidden=false;return}
     if(Object.values(docs).filter(v=>v==='review').length<2){err.textContent='Ajoutez au moins votre CIN et votre permis (version test : n\'importe quelle image convient).';err.hidden=false;return}
-    mutate(d=>{const d1=d.drivers.find(x=>x.id==='d1');Object.assign(d1,{n:fullName(acc),cin:g('dr-cin').toUpperCase(),permis:g('dr-permis'),car:g('dr-car')+' · '+g('dr-color'),plate:[g('dr-p1'),$('#dr-p2',host).value,g('dr-p3')],cats:[$('#dr-cat',host).value],status:'pending',docs,rating:0,trips:0,sub:{status:'none'}})});
+    const vals={n:fullName(curAccount())||meD().n,cin:g('dr-cin').toUpperCase(),permis:g('dr-permis'),car:g('dr-car')+' · '+g('dr-color'),plate:[g('dr-p1'),$('#dr-p2',host).value,g('dr-p3')],cats:[$('#dr-cat',host).value],status:'pending',docs,rating:0,trips:0,sub:{status:'none'}};
+    mutate(d=>{const d1=d.drivers.find(x=>x.id===MYD);if(d1)Object.assign(d1,vals)});
     $('#pagehost',host).innerHTML='';toast('Dossier envoyé · vérification sous 48 h','', 'doc');renderDriver()});
 }
 function planPicker(){return `<div class="list">${PLANS.map(p=>`<button class="li" style="width:100%;text-align:left" data-act="d-plan" data-id="${p.id}"><span class="qi">${D.plan===p.id?ic('check'):ic('ticket')}</span><span class="tx"><b>${p.n}${p.id==='month'?' <span class="badge r">Meilleur prix</span>':p.id==='twoWeeks'?' <span class="badge">Populaire</span>':''}</b><small>${(p.price/p.days).toFixed(1).replace('.',',')} DH / jour</small></span><b class="mono">${p.price} DH</b></button>`).join('')}</div>
@@ -1463,7 +1524,7 @@ function subPage(){const sb=subOf(meD()),pays=db.subPayments.filter(myPay);
   return `${sb?`<div class="card" style="background:linear-gradient(135deg,#0A835A,#0B3F2E);border:0"><div class="eyebrow" style="color:#cfeee0">Abonnement actif</div><div class="big-num">${esc(PLANS.find(x=>x.id===sb.plan).n)}</div><small style="opacity:.85">Expire le ${dfmt(sb.expiresAt)}</small></div>`:''}
   ${subPending()?driverPaywall():`<div class="card stack"><h3>${sb?'Renouveler (prolonge la durée)':'Choisir une formule'}</h3>${planPicker()}</div>`}
   <div class="card"><h3>Historique des paiements</h3><div class="list">${pays.map(p=>`<div class="li"><span class="tx"><b>${esc(PLANS.find(x=>x.id===p.plan).n)} · ${esc(SUBM[p.method].n)}</b><small>${dfmt(p.at)} · ${p.ref}</small></span><span class="pill ${p.status==='paid'?'completed':p.status==='rejected'?'cancelled':'pending'}">${p.status==='paid'?'Payé':p.status==='rejected'?'Refusé':'En attente'}</span></div>`).join('')||'<p class="muted" style="font-size:13px">Aucun paiement.</p>'}</div></div>`}
-function activateSub(d,pay){let dr=d.drivers.find(x=>x.id===pay.driverId);if(pay.owner&&dr&&dr.owner!==pay.owner){const ac=d.accounts.find(a=>a.phone===pay.owner);if(ac&&ac.driver)dr=ac.driver}const pl=PLANS.find(x=>x.id===pay.plan);const base=subOf(dr)?dr.sub.expiresAt:Date.now();dr.sub={status:'active',plan:pay.plan,method:pay.method,expiresAt:base+pl.days*864e5};pay.status='paid';pay.paidAt=Date.now()}
+function activateSub(d,pay){const dr=d.drivers.find(x=>x.id===pay.driverId);const pl=PLANS.find(x=>x.id===pay.plan);const base=subOf(dr)?dr.sub.expiresAt:Date.now();dr.sub={status:'active',plan:pay.plan,method:pay.method,expiresAt:base+pl.days*864e5};pay.status='paid';pay.paidAt=Date.now()}
 function driverScene(now){
   const sc={routes:[],markers:[],cars:[]};const me=meD();
   const r=D.rideId&&rideById(D.rideId);
@@ -1482,7 +1543,7 @@ function dFit(){if(!dMap)return;dMap.bottom=$('#sheet',host)?.offsetHeight||0;co
   dMap.focus(me.x,me.y,me.online?1.25:1.7)}
 function driverSig(){const r=D.rideId&&rideById(D.rideId);return [meD().status,meD().online,D.req,D.rateFor,r?r.status:'',!!subOf(meD()),!!subPending()].join('|')}
 function renderDriver(){
-  const sh=$('#sheet',host);if(!sh)return;const me=meD(),dd=db.driver;let h='';
+  const sh=$('#sheet',host);if(!sh)return;const me=meD(),dd=DP();let h='';
   const r=D.rideId&&rideById(D.rideId);
   if(me.status!=='approved'){h=driverStatusCard(me)}
   else if(D.rateFor){const rr=rideById(D.rateFor);h=`<div style="text-align:center;display:grid;gap:8px;justify-items:center"><span class="badge">Course terminée</span><div class="big-num">${money(rr.price)}</div><small class="muted">À encaisser en espèces · 100 % pour vous, 0 % de commission</small><div class="status-h" style="margin-top:6px">Notez ${esc(rr.riderName.split(' ')[0])}</div></div><div class="stars">${[1,2,3,4,5].map(i=>`<button data-act="d-star" data-v="${i}" class="${D.rateV>=i?'on':''}" aria-label="${i} étoiles">${ic('star')}</button>`).join('')}</div><button class="btn primary block" data-act="d-ratesend">Continuer</button>`}
@@ -1518,7 +1579,7 @@ function rerenderDriverSub(){const pg=$('#pagehost .page-h h2',host);if(pg&&pg.t
 function driverTick(){
   db=load();const me=meD(),now=Date.now();
   const sk=JSON.stringify([me.sub,me.status,db.subPayments.filter(myPay).map(p=>p.status)]);if(D.subKey&&me.status==='approved'&&!D.subKey.includes('"approved"')){toast('Dossier validé ! Choisissez votre abonnement pour passer en ligne.','', 'check')}if(D.subKey&&D.subKey!==sk){D.subKey=sk;if(subOf(me))toast('Abonnement activé · vous pouvez passer en ligne','', 'ticket');rerenderDriverSub()}D.subKey=sk;
-  if(me.online&&!subOf(me)){mutate(d=>{d.drivers.find(x=>x.id==='d1').online=false});renderDriver();return}
+  if(me.online&&!subOf(me)){mutate(d=>{d.drivers.find(x=>x.id===MYD).online=false});renderDriver();return}
   const r=D.rideId&&rideById(D.rideId);
   if(r&&r.status==='cancelled'){toast('Le passager a annulé la course','r');D.rideId=null;renderDriver();return}
   if(!D.rideId){const mr=myRide();if(mr)D.rideId=mr.id}
@@ -1529,11 +1590,11 @@ function driverTick(){
       if(!q||q.status!=='searching'){D.req=null;toast('La demande n\'est plus disponible','r');renderDriver();return}
       if(left<=0){ACTS['d-decline']();toast('Demande expirée','r');return}
       const rc=$('#ringc',host),rt=$('#ringt',host);if(rc){rc.setAttribute('stroke-dashoffset',String(157*(1-left/15)));rt.textContent=Math.ceil(left)}
-      if(db.driver.auto&&now-D.reqT>1500)ACTS['d-accept']();
+      if(DP().auto&&now-D.reqT>1500)ACTS['d-accept']();
     }else{
-      const cand=db.rides.find(x=>x.status==='searching'&&!(x.declined||[]).includes('d1')&&me.cats.includes(x.cat)&&now-x.t.created<20000&&(x.origin==='rider'||x.target==='d1'));
+      const cand=db.rides.find(x=>x.status==='searching'&&!(x.declined||[]).includes(MYD)&&me.cats.includes(x.cat)&&now-x.t.created<20000&&(x.origin==='rider'||x.target===MYD));
       if(cand){D.req=cand.id;D.reqT=now;renderDriver();try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}return}
-      if(db.driver.sim&&now-D.lastSim>9000&&now-(D.onlineAt||0)>3500){D.lastSim=now;spawnSimRequest()}
+      if(DP().sim&&now-D.lastSim>9000&&now-(D.onlineAt||0)>3500){D.lastSim=now;spawnSimRequest()}
     }
   }
   if(driverSig()!==D.sig)renderDriver();
@@ -1545,7 +1606,7 @@ function spawnSimRequest(){
   if(GMODE&&near.length<2){const an=Math.random()*6.28,bn=Math.random()*6.28,ra=40+Math.random()*60,rb=150+Math.random()*200;a={n:'Prise en charge à '+Math.round(ra*18.5/10)*10+' m',x:me.x+Math.cos(an)*ra,y:me.y+Math.sin(an)*ra};b={n:'Destination à '+(rb*KM_PER_U).toFixed(1).replace('.',',')+' km',x:a.x+Math.cos(bn)*rb,y:a.y+Math.sin(bn)*rb}}
   const cat=me.cats[Math.random()<.8?0:me.cats.length-1];const p=routePath(a,null,b),km=tripKm(p),min=tripMin(km),surge=surgeAt(a.x,a.y),q=quote(cat,km,min,surge,null);
   const now=Date.now();
-  mutate(d=>{d.rides.push({id:'R'+uid(),origin:'simrider',target:'d1',riderName:RIDER_NAMES[Math.floor(Math.random()*RIDER_NAMES.length)],riderRating:+(4.6+Math.random()*.4).toFixed(2),pickup:{n:a.n,x:a.x,y:a.y},dest:{n:b.n,x:b.x,y:b.y},stop:null,cat,km,min,price:q.total,surge,promo:null,payment:'cash',status:'searching',driverId:null,sim:null,t:{created:now,phase:now},dur:{arrive:14000,trip:clamp(9000+km*1400,12000,30000)},etaMin:Math.max(2,Math.round(Math.hypot(a.x-me.x,a.y-me.y)*KM_PER_U*2.4)),pin:String(1000+Math.floor(Math.random()*9000)),chat:[],declined:[],city:'Casablanca'})});
+  mutate(d=>{d.rides.push({id:'R'+uid(),origin:'simrider',target:MYD,riderName:RIDER_NAMES[Math.floor(Math.random()*RIDER_NAMES.length)],riderRating:+(4.6+Math.random()*.4).toFixed(2),pickup:{n:a.n,x:a.x,y:a.y},dest:{n:b.n,x:b.x,y:b.y},stop:null,cat,km,min,price:q.total,surge,promo:null,payment:'cash',status:'searching',driverId:null,sim:null,t:{created:now,phase:now},dur:{arrive:14000,trip:clamp(9000+km*1400,12000,30000)},etaMin:Math.max(2,Math.round(Math.hypot(a.x-me.x,a.y-me.y)*KM_PER_U*2.4)),pin:String(1000+Math.floor(Math.random()*9000)),chat:[],declined:[],city:'Casablanca'})});
 }
 Object.assign(ACTS,{
  'd-menu'(){driverDrawer();$('#drawer',host).classList.add('on');$('#scrim',host).classList.add('on')},
@@ -1553,19 +1614,19 @@ Object.assign(ACTS,{
  'd-plan'(el){D.plan=el.dataset.id;rerenderDriverSub()},
  'd-method'(el){D.method=el.dataset.k;rerenderDriverSub()},
  'd-subpay'(){const pl=PLANS.find(p=>p.id===D.plan);if(D.method==='cmi'){openModal(`<h3>${ic('card')} Paiement sécurisé CMI</h3><div class="trip"><div class="kv"><span>Abonnement</span><span>${pl.n}</span></div><div class="kv tot"><span>Montant</span><span>${pl.price} DH</span></div></div><p class="muted" style="margin:0;font-size:13px">Version test : aucun débit réel. En production, redirection vers la page de paiement CMI (3-D Secure).</p><button class="btn primary block" data-act="d-cmiok">Simuler le paiement</button>`);return}
-   const pay={id:'P'+uid(),driverId:'d1',owner:meD().owner,plan:pl.id,method:D.method,amount:pl.price,ref:'SIIR-'+(100000+Math.floor(Math.random()*900000)),at:Date.now(),status:'pending'};mutate(d=>{d.subPayments.unshift(pay)});ACTS['d-instr']();rerenderDriverSub()},
- 'd-cmiok'(){const pl=PLANS.find(p=>p.id===D.plan);mutate(d=>{const pay={id:'P'+uid(),driverId:'d1',owner:d.drivers.find(x=>x.id==='d1').owner,plan:pl.id,method:'cmi',amount:pl.price,ref:'SIIR-'+(100000+Math.floor(Math.random()*900000)),at:Date.now(),status:'pending'};d.subPayments.unshift(pay);activateSub(d,pay)});closeModal();toast('Paiement accepté · abonnement activé','', 'ticket');rerenderDriverSub()},
+   const pay={id:'P'+uid(),driverId:MYD,plan:pl.id,method:D.method,amount:pl.price,ref:'SIIR-'+(100000+Math.floor(Math.random()*900000)),at:Date.now(),status:'pending'};mutate(d=>{d.subPayments.unshift(pay)});ACTS['d-instr']();rerenderDriverSub()},
+ 'd-cmiok'(){const pl=PLANS.find(p=>p.id===D.plan);mutate(d=>{const pay={id:'P'+uid(),driverId:MYD,plan:pl.id,method:'cmi',amount:pl.price,ref:'SIIR-'+(100000+Math.floor(Math.random()*900000)),at:Date.now(),status:'pending'};d.subPayments.unshift(pay);activateSub(d,pay)});closeModal();toast('Paiement accepté · abonnement activé','', 'ticket');rerenderDriverSub()},
  'd-instr'(){const p=subPending();if(!p)return;openModal(`<h3>${p.method==='virement'?'Effectuez le virement':'Payez chez Wafacash'}</h3><div class="trip"><div class="kv"><span>Bénéficiaire</span><span>SIIR SARL</span></div>${p.method==='virement'?'<div class="kv"><span>Banque / RIB</span><span>À configurer</span></div>':''}<div class="kv"><span>Montant</span><span>${p.amount} DH</span></div><div class="kv tot"><span>Référence</span><span>${p.ref}</span></div></div><p class="muted" style="margin:0;font-size:13px">Indiquez la référence ${p.method==='virement'?'dans le motif du virement':'au guichet'}. L'activation se fait dès validation par l'équipe SIIR! — dans cette démo, depuis Admin › Abonnements.</p><button class="btn ghost block" data-act="r-copy" data-t="${p.ref}">${ic('copy')}Copier la référence</button>`)},
  'd-register'(){driverRegisterPage()},
- 'd-online'(){if(!subOf(meD())){toast('Abonnement requis pour passer en ligne','r');return}mutate(d=>{d.drivers.find(x=>x.id==='d1').online=true});D.onlineAt=Date.now();D.lastSim=Date.now()-4000;toast('Vous êtes en ligne. Les demandes vont arriver.','', 'power');renderDriver()},
- 'd-offline'(){mutate(d=>{d.drivers.find(x=>x.id==='d1').online=false});D.req=null;toast('Vous êtes hors ligne','r','power');renderDriver()},
- 'd-set'(el){const k=el.dataset.k;mutate(d=>{d.driver[k]=!d.driver[k]});el.classList.toggle('on');el.setAttribute('aria-checked',el.classList.contains('on'))},
- 'd-accept'(){const id=D.req;if(!id)return;const me=meD();const ok=mutate(d=>{const r=d.rides.find(x=>x.id===id);if(!r||r.status!=='searching')return false;Object.assign(r,{status:'accepted',driverId:'d1',sim:'driver',dstart:{x:me.x,y:me.y},t:{...r.t,phase:Date.now()}});r.etaMin=Math.max(2,Math.round(Math.hypot(r.pickup.x-me.x,r.pickup.y-me.y)*KM_PER_U*2.4))});D.req=null;if(ok===false){toast('Trop tard, la course a été prise','r');renderDriver();return}D.rideId=id;D.lastChatN=0;toast('Course acceptée. Navigation vers le passager.','', 'route');renderDriver()},
- 'd-decline'(){const id=D.req;mutate(d=>{const r=d.rides.find(x=>x.id===id);if(r){r.declined=[...(r.declined||[]),'d1'];if(r.origin==='simrider'){r.status='cancelled';r.t.done=Date.now()}}});D.req=null;renderDriver()},
- 'd-arrived'(){mutate(d=>{const r=d.rides.find(x=>x.id===D.rideId);r.status='arrived';r.t.phase=Date.now()});toast('Passager notifié de votre arrivée','', 'bell');renderDriver()},
- 'd-start'(){const r=rideById(D.rideId);const ins=$$('.pinpad input',host);if(ins.length){const v=ins.map(i=>i.value).join('');if(v!==r.pin){toast('PIN incorrect. Demandez au passager son code à 4 chiffres.','r');ins.forEach(i=>i.value='');ins[0].focus();return}}mutate(d=>{const x=d.rides.find(y=>y.id===D.rideId);x.status='ongoing';x.t.phase=Date.now()});toast('Course démarrée. Bonne route !','', 'route');renderDriver()},
- 'd-finish'(){const id=D.rideId;mutate(d=>{completeRide(d,d.rides.find(x=>x.id===id))});D.rideId=null;D.rateFor=id;D.rateV=5;renderDriver()},
- 'd-cancel'(){mutate(d=>{const r=d.rides.find(x=>x.id===D.rideId);r.status='cancelled';r.t.done=Date.now()});D.rideId=null;toast('Course annulée · frais d\'attente facturés au passager','r');renderDriver()},
+ 'd-online'(){if(!subOf(meD())){toast('Abonnement requis pour passer en ligne','r');return}mutate(d=>{d.drivers.find(x=>x.id===MYD).online=true});D.onlineAt=Date.now();D.lastSim=Date.now()-4000;toast('Vous êtes en ligne. Les demandes vont arriver.','', 'power');renderDriver()},
+ 'd-offline'(){mutate(d=>{d.drivers.find(x=>x.id===MYD).online=false});D.req=null;toast('Vous êtes hors ligne','r','power');renderDriver()},
+ 'd-set'(el){const k=el.dataset.k;mutate(d=>{const p=d.drivers.find(x=>x.id===MYD).prefs;p[k]=!p[k]});el.classList.toggle('on');el.setAttribute('aria-checked',el.classList.contains('on'))},
+ 'd-accept'(){const id=D.req;if(!id)return;const me=meD();const ok=mutate(d=>{const r=d.rides.find(x=>x.id===id);if(!r||r.status!=='searching')return false;Object.assign(r,{status:'accepted',driverId:MYD,sim:'driver',dstart:{x:me.x,y:me.y},t:{...r.t,phase:Date.now()}});r.etaMin=Math.max(2,Math.round(Math.hypot(r.pickup.x-me.x,r.pickup.y-me.y)*KM_PER_U*2.4))});D.req=null;if(ok===false){toast('Trop tard, la course a été prise','r');renderDriver();return}D.rideId=id;D.lastChatN=0;toast('Course acceptée. Navigation vers le passager.','', 'route');renderDriver()},
+ 'd-decline'(){const id=D.req;mutate(d=>{const r=d.rides.find(x=>x.id===id);if(r){r.declined=[...(r.declined||[]),MYD];if(r.origin==='simrider'){r.status='cancelled';r.t.done=Date.now()}}});D.req=null;renderDriver()},
+ 'd-arrived'(){const rid=D.rideId;mutate(d=>{const r=d.rides.find(x=>x.id===rid);if(!r)return false;r.status='arrived';r.t.phase=Date.now()});toast('Passager notifié de votre arrivée','', 'bell');renderDriver()},
+ 'd-start'(){const r=rideById(D.rideId);const ins=$$('.pinpad input',host);if(ins.length){const v=ins.map(i=>i.value).join('');if(v!==r.pin){toast('PIN incorrect. Demandez au passager son code à 4 chiffres.','r');ins.forEach(i=>i.value='');ins[0].focus();return}}const rid=D.rideId;mutate(d=>{const x=d.rides.find(y=>y.id===rid);if(!x)return false;x.status='ongoing';x.t.phase=Date.now()});toast('Course démarrée. Bonne route !','', 'route');renderDriver()},
+ 'd-finish'(){const id=D.rideId;mutate(d=>{const r=d.rides.find(x=>x.id===id);if(!r||r.status==='completed')return false;completeRide(d,r)});D.rideId=null;D.rateFor=id;D.rateV=5;renderDriver()},
+ 'd-cancel'(){const rid=D.rideId;mutate(d=>{const r=d.rides.find(x=>x.id===rid);if(!r)return false;r.status='cancelled';r.t.done=Date.now()});D.rideId=null;toast('Course annulée · frais d\'attente facturés au passager','r');renderDriver()},
  'd-star'(el){D.rateV=+el.dataset.v;renderDriver()},
  'd-ratesend'(){D.rateFor=null;renderDriver()},
  'd-chat'(){ACTS['r-chat']()},
@@ -1577,22 +1638,22 @@ Object.assign(ACTS,{
 });
 function driverDrawer(){const me=meD();
   $('#drawer',host).innerHTML=`<div class="dr-head">${avatar(me.n,'',me.rating.toFixed(2))}<div><b>${esc(me.n)}</b><small>${esc(me.car)}</small><div style="margin-top:6px">${plate(me.plate)}</div></div></div>
-  <div class="dr-list">${[['abonnement','ticket','Abonnement',subOf(me)?'Actif':'Inactif'],['gains','chart','Gains',money(todayEarn())],['historique','clock','Historique des courses'],['documents','doc','Documents'],['vehicule','car','Véhicule'],['bonus','target','Défis & bonus',db.driver.bonusDone+'/'+db.driver.bonusGoal],['aide','help','Support chauffeur'],['parametres','gear','Paramètres']].map(([p,i,n,b])=>`<button class="dr-item" data-act="d-page" data-p="${p}">${ic(i)}${n}${b?`<span class="badge">${b}</span>`:''}</button>`).join('')}</div>
+  <div class="dr-list">${[['abonnement','ticket','Abonnement',subOf(me)?'Actif':'Inactif'],['gains','chart','Gains',money(todayEarn())],['historique','clock','Historique des courses'],['documents','doc','Documents'],['vehicule','car','Véhicule'],['bonus','target','Défis & bonus',DP().bonusDone+'/'+DP().bonusGoal],['aide','help','Support chauffeur'],['parametres','gear','Paramètres']].map(([p,i,n,b])=>`<button class="dr-item" data-act="d-page" data-p="${p}">${ic(i)}${n}${b?`<span class="badge">${b}</span>`:''}</button>`).join('')}</div>
   <button class="dr-item" data-act="r-logout">${ic('logout')}Se déconnecter</button>
   <a class="switchcard g" href="#passager">${ic('user','lg')}<span><b>Passer en mode passager</b><small>Commandez une course avec le même compte</small></span></a>`}
 function driverPage(p){
   const me=meD(),PH=$('#pagehost',host);let title='',body='';
   if(p==='gains'){title='Gains';const days=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];const today=(new Date().getDay()+6)%7;const vals=[412,388,520,465,610,702,344].map((v,i)=>i===today?todayEarn():i>today?0:v);const mx=Math.max(...vals,1);const week=vals.reduce((a,b)=>a+b,0);
-    body=`<div class="card"><div class="eyebrow">Cette semaine</div><div class="big-num">${money(week)}</div><small class="muted">${db.driver.bonusDone+41} courses · 38 h en ligne · 0 % de commission</small><div class="bars">${vals.map((v,i)=>`<div class="bar ${i===today?'today':''}"><em>${v?Math.round(v):''}</em><i style="height:${Math.max(2,v/mx*90)}%"></i><small>${days[i]}</small></div>`).join('')}</div></div>
+    body=`<div class="card"><div class="eyebrow">Cette semaine</div><div class="big-num">${money(week)}</div><small class="muted">${DP().bonusDone+41} courses · 38 h en ligne · 0 % de commission</small><div class="bars">${vals.map((v,i)=>`<div class="bar ${i===today?'today':''}"><em>${v?Math.round(v):''}</em><i style="height:${Math.max(2,v/mx*90)}%"></i><small>${days[i]}</small></div>`).join('')}</div></div>
     <div class="stats3"><div class="stat"><b>${money(todayEarn())}</b><small>Aujourd'hui</small></div><div class="stat"><b>0 DH</b><small>Commission</small></div><div class="stat"><b>${subOf(meD())?Math.floor((subOf(meD()).expiresAt-Date.now())/864e5)+' j':'—'}</b><small>Abonnement</small></div></div>
     <div class="card"><h3>Vos gains, sans commission</h3><p class="muted" style="margin:0;font-size:13px">Les passagers vous paient en espèces. SIIR! se rémunère uniquement par votre abonnement : 180 DH la semaine, 350 DH les 2 semaines ou 650 DH le mois.</p></div>`}
   else if(p==='abonnement'){title='Abonnement';body=subPage()}
-  else if(p==='historique'){title='Historique';const list=db.rides.filter(r=>r.driverId==='d1').sort((a,b)=>b.t.created-a.t.created);body=list.map(r=>`<div class="card"><div class="between"><span class="eyebrow">${dfmt(r.t.created)}</span><span class="pill ${r.status}">${statusFR(r.status)}</span></div><div class="between" style="margin-top:8px"><span style="font-size:13px">${esc(r.pickup.n)} → ${esc(r.dest.n)}</span><b class="mono">${money(r.price*(1-db.commission/100))}</b></div><small class="muted">${esc(r.riderName)} · ${esc(PAY[r.payment].n)}${r.tip?' · pourboire '+money(r.tip):''}</small></div>`).join('')||'<p class="muted">Aucune course.</p>'}
+  else if(p==='historique'){title='Historique';const list=db.rides.filter(r=>r.driverId===MYD).sort((a,b)=>b.t.created-a.t.created);body=list.map(r=>`<div class="card"><div class="between"><span class="eyebrow">${dfmt(r.t.created)}</span><span class="pill ${r.status}">${statusFR(r.status)}</span></div><div class="between" style="margin-top:8px"><span style="font-size:13px">${esc(r.pickup.n)} → ${esc(r.dest.n)}</span><b class="mono">${money(r.price*(1-db.commission/100))}</b></div><small class="muted">${esc(r.riderName)} · ${esc(PAY[r.payment].n)}${r.tip?' · pourboire '+money(r.tip):''}</small></div>`).join('')||'<p class="muted">Aucune course.</p>'}
   else if(p==='documents'){title='Documents';const L={cin:'Carte nationale (CIN)',permis:'Permis de conduire',carte:'Carte grise',assurance:'Assurance véhicule',vtc:'Autorisation de transport',casier:'Fiche anthropométrique'};body=`<div class="card">${Object.entries(L).map(([k,n])=>`<div class="li"><span class="qi">${ic('doc')}</span><span class="tx"><b>${n}</b><small>${me.docs[k]==='ok'?'Vérifié · expire en 2027':'À fournir'}</small></span>${me.docs[k]==='ok'?'<span class="badge">Validé</span>':`<button class="btn ghost sm" data-act="d-upload" data-n="${n}">Envoyer</button>`}</div>`).join('')}</div>`}
   else if(p==='vehicule'){title='Véhicule';body=`<div class="card" style="display:grid;gap:10px;justify-items:center;text-align:center">${vehSVG('eco').replace('class="cv"','class="cv" style="width:180px;height:100px"')}<b style="font-size:18px">${esc(me.car)}</b>${plate(me.plate)}<small class="muted">Catégories : ${me.cats.map(c=>CATS[c].n).join(', ')}</small></div><div class="card"><div class="list"><div class="li"><span class="tx"><b>Contrôle technique</b><small>Prochain : mars 2027</small></span><span class="badge">OK</span></div><div class="li"><span class="tx"><b>Siège enfant</b><small>Disponible sur demande</small></span><span class="badge n">Non</span></div></div></div>`}
-  else if(p==='bonus'){title='Défis & bonus';const dd=db.driver;body=`<div class="card"><h3>Défi de la semaine</h3><div class="big-num">${dd.bonusDone}<small> / ${dd.bonusGoal} courses</small></div><div class="prog" style="margin:10px 0"><i style="width:${dd.bonusDone/dd.bonusGoal*100}%"></i></div><small class="muted">Récompense : +150 DH</small></div><div class="card"><h3>Heures de pointe</h3><p class="muted" style="margin:0;font-size:13px">+15 % sur les courses de 7 h à 9 h et de 17 h à 20 h en semaine.</p></div><div class="card"><h3>Parrainage chauffeur</h3><p class="muted" style="margin:0;font-size:13px">Recevez 500 DH pour chaque chauffeur parrainé qui termine 50 courses. Code : <b class="mono">YOUSSEF500</b></p></div>`}
+  else if(p==='bonus'){title='Défis & bonus';const dd=DP();body=`<div class="card"><h3>Défi de la semaine</h3><div class="big-num">${dd.bonusDone}<small> / ${dd.bonusGoal} courses</small></div><div class="prog" style="margin:10px 0"><i style="width:${dd.bonusDone/dd.bonusGoal*100}%"></i></div><small class="muted">Récompense : +150 DH</small></div><div class="card"><h3>Heures de pointe</h3><p class="muted" style="margin:0;font-size:13px">+15 % sur les courses de 7 h à 9 h et de 17 h à 20 h en semaine.</p></div><div class="card"><h3>Parrainage chauffeur</h3><p class="muted" style="margin:0;font-size:13px">Recevez 500 DH pour chaque chauffeur parrainé qui termine 50 courses. Code : <b class="mono">YOUSSEF500</b></p></div>`}
   else if(p==='aide'){title='Support chauffeur';body=`<div class="card"><div class="list"><div class="li"><span class="tx"><b>Centre chauffeurs Casablanca</b><small>Bd Abdelmoumen, lun.–sam. 9 h–18 h</small></span></div><div class="li"><span class="tx"><b>Assistance 24h/24</b><small>+212 5 22 00 47 00</small></span></div><div class="li"><span class="tx"><b>Assurance trajet</b><small>Couverture passagers et chauffeur incluse</small></span></div></div></div>`}
-  else if(p==='parametres'){title='Paramètres';const dd=db.driver;body=`<div class="card"><div class="list"><div class="li"><span class="tx"><b>Sons des demandes</b></span>${toggle(dd.sounds,'d-set','sounds')}</div><div class="li"><span class="tx"><b>Acceptation automatique</b></span>${toggle(dd.auto,'d-set','auto')}</div><div class="li"><span class="tx"><b>Courses simulées (démo)</b></span>${toggle(dd.sim,'d-set','sim')}</div><div class="li"><span class="tx"><b>Navigation</b><small>Waze · Google Maps · intégrée</small></span><span class="badge n">Intégrée</span></div></div></div><button class="btn ghost block" data-act="r-reset">${ic('refresh')}Réinitialiser les données de démo</button>`}
+  else if(p==='parametres'){title='Paramètres';const dd=DP();body=`<div class="card"><div class="list"><div class="li"><span class="tx"><b>Sons des demandes</b></span>${toggle(dd.sounds,'d-set','sounds')}</div><div class="li"><span class="tx"><b>Acceptation automatique</b></span>${toggle(dd.auto,'d-set','auto')}</div><div class="li"><span class="tx"><b>Courses simulées (démo)</b></span>${toggle(dd.sim,'d-set','sim')}</div><div class="li"><span class="tx"><b>Navigation</b><small>Waze · Google Maps · intégrée</small></span><span class="badge n">Intégrée</span></div></div></div><button class="btn ghost block" data-act="r-reset">${ic('refresh')}Réinitialiser les données de démo</button>`}
   PH.innerHTML=`<section class="page"><div class="page-h"><button class="iconbtn" data-act="d-pageclose" aria-label="Retour">${ic('back')}</button><h2>${title}</h2></div><div class="page-b">${body}</div></section>`;
 }
 
@@ -1602,7 +1663,9 @@ function driverPage(p){
 const A={view:'dash',filter:'all',q:''};let aMap=null,aTimer=null;
 const AV=[['dash','grid','Tableau de bord'],['live','map','Carte en direct'],['rides','route','Courses'],['drivers','car','Chauffeurs'],['riders','users','Passagers'],['subs','ticket','Abonnements'],['pricing','tag','Tarification'],['promos','gift','Promotions'],['zones','zap','Zones & majoration'],['support','help','Support'],['settings','gear','Paramètres']];
 function mountAdmin(root){
-  let ok=false;try{ok=sessionStorage.getItem('siir-admin')==='1'}catch(e){ok=window.__siirAdmin}
+  if(FBMODE){const acc=getSession();if(!acc){AU.flow='login';return mountAuth(root,'admin')}
+    if(!isAdmin()){host=root;root.innerHTML=`<div class="adm-login"><div style="width:min(420px,100%);display:grid;gap:12px;background:var(--panel);border:1px solid var(--line2);border-radius:22px;padding:24px"><div class="row">${markSVG()}${wordmark()}</div><h2 style="font-size:20px">Accès refusé</h2><p class="muted" style="margin:0">Le numéro ${fmtPhone(acc.phone)} n'est pas administrateur. Ajoutez-le à la variable GitHub <b class="mono">ADMIN_PHONES</b>.</p><button class="btn ghost block" data-act="au-logout">Changer de compte</button></div><div class="toasts"></div></div>`;return}}
+  let ok=FBMODE;if(!ok)try{ok=sessionStorage.getItem('siir-admin')==='1'}catch(e){ok=window.__siirAdmin}
   if(!ok){host=root;root.innerHTML=`<div class="adm-login"><form id="adm-f"><div class="row">${markSVG()}${wordmark()}</div><div><h2 style="font-size:20px">Console admin</h2><p class="muted" style="margin:4px 0 0">Accès réservé à l'équipe SIIR!.</p></div>
     <div class="field"><label for="adm-e">E-mail</label><input class="input" id="adm-e" type="email" autocomplete="username" required></div>
     <div class="field"><label for="adm-p">Mot de passe</label><input class="input" id="adm-p" type="password" autocomplete="current-password" required></div>
@@ -1625,8 +1688,8 @@ function renderAdmin(soft){
   if(A.view==='zones'){$$('input[type=range]',m).forEach(r=>r.addEventListener('input',()=>{const z=r.dataset.z;$('#zm-'+z,host).textContent='×'+(+r.value).toFixed(1);mutate(d=>{d.zones.find(x=>x.id===z).m=+r.value})}))}
 }
 function adminScene(now){const sc={routes:[],markers:[],cars:[]};
-  db.drivers.filter(d=>d.online&&d.id!=='d1').forEach((d,i)=>{sc.cars.push({x:d.x+Math.sin(now/3000+i)*14,y:d.y+Math.cos(now/3700+i)*10,a:now/3000+i,color:'#2EE59D',glow:true})});
-  const me=meD();if(me.online&&!myRide())sc.cars.push({x:me.x,y:me.y,a:-1.57,color:'#F0405F',big:true});
+  db.drivers.filter(d=>d.online&&!d.owner).forEach((d,i)=>{sc.cars.push({x:d.x+Math.sin(now/3000+i)*14,y:d.y+Math.cos(now/3700+i)*10,a:now/3000+i,color:'#2EE59D',glow:true})});
+  db.drivers.filter(d=>d.online&&d.owner&&!db.rides.some(r=>r.driverId===d.id&&['accepted','arrived','ongoing'].includes(r.status))).forEach(d=>sc.cars.push({x:d.x,y:d.y,a:-1.57,color:'#F0405F',big:true}));
   db.rides.filter(r=>['accepted','arrived','ongoing'].includes(r.status)).forEach(r=>{const cp=carPos(r,now);sc.routes.push({pts:r.status==='accepted'?manhattan(r.dstart,r.pickup):routePath(r.pickup,r.stop,r.dest),color:r.status==='accepted'?'#2EE59D':'#F0405F',progress:phaseProgress(r,now)});sc.cars.push({x:cp.x,y:cp.y,a:cp.a,color:'#56B7FF',big:true})});
   db.rides.filter(r=>r.status==='searching').forEach(r=>sc.markers.push({type:'pickup',...r.pickup}));
   return sc}
@@ -1688,18 +1751,18 @@ function subRevenue(){return db.subPayments.filter(p=>p.status==='paid'&&Date.no
 function ridesTable(list){return `<div class="tbl-w"><table><thead><tr><th>ID</th><th>Date</th><th>Passager</th><th>Chauffeur</th><th>Trajet</th><th>Catégorie</th><th>Paiement</th><th class="r">Montant</th><th>Statut</th></tr></thead><tbody>${list.map(r=>`<tr><td class="mono dim">${esc(r.id)}</td><td class="mono">${dfmt(r.t.at||r.t.created)}</td><td>${esc(r.riderName)}</td><td>${r.driverId&&drv(r.driverId)?esc(drv(r.driverId).n):'<span class="dim">—</span>'}</td><td>${esc(r.pickup.n)} → ${esc(r.dest.n)}</td><td>${esc(CATS[r.cat].n)}</td><td>${esc(PAY[r.payment].n)}</td><td class="r mono">${money(r.price)}</td><td><span class="pill ${r.status}">${statusFR(r.status)}</span></td></tr>`).join('')||'<tr><td colspan="9" class="muted">Aucune course.</td></tr>'}</tbody></table></div>`}
 Object.assign(ACTS,{
  'adm-fill'(){$('#adm-e').value='admin@siir.ma';$('#adm-p').value='Siir2026!'},
- 'adm-logout'(){try{sessionStorage.removeItem('siir-admin')}catch(e){}window.__siirAdmin=false;route(true)},
+ 'adm-logout'(){if(FBMODE){setSession(null);return}try{sessionStorage.removeItem('siir-admin')}catch(e){}window.__siirAdmin=false;route(true)},
  'a-nav'(el){A.view=el.dataset.v;renderAdmin();$('.main',host).scrollTop=0},
  'a-filter'(el){A.filter=el.dataset.f;renderAdmin()},
  'a-drv'(el){const{id,s}=el.dataset;mutate(d=>{const x=d.drivers.find(y=>y.id===id);x.status=s;if(s==='approved'){Object.keys(x.docs).forEach(k=>x.docs[k]='ok');if(!x.rating)x.rating=5}if(s==='suspended')x.online=false});toast(s==='approved'?'Chauffeur validé':'Chauffeur suspendu',s==='approved'?'':'r');renderAdmin()},
  'a-rider'(el){mutate(d=>{const r=d.riders[+el.dataset.i];r.status=r.status==='active'?'suspended':'active'});renderAdmin()},
  'a-subok'(el){mutate(d=>{const p=d.subPayments.find(x=>x.id===el.dataset.id);if(p&&p.status==='pending')activateSub(d,p)});toast('Paiement validé · abonnement activé');renderAdmin()},
  'a-subko'(el){mutate(d=>{const p=d.subPayments.find(x=>x.id===el.dataset.id);if(p)p.status='rejected'});toast('Paiement refusé','r');renderAdmin()},
- 'a-savepricing'(){mutate(d=>{Object.keys(CATS).forEach(c=>['base','km','min','minFare'].forEach(k=>{const v=+$(`#pp-${c}-${k}`,host).value;if(!isNaN(v)&&v>=0)d.pricing[c][k]=v}))});toast('Tarifs enregistrés et appliqués à l\'app passager');renderAdmin()},
+ 'a-savepricing'(){const vals={};Object.keys(CATS).forEach(c=>['base','km','min','minFare'].forEach(k=>{const v=+$(`#pp-${c}-${k}`,host).value;if(!isNaN(v)&&v>=0)vals[c+'|'+k]=v}));mutate(d=>{Object.entries(vals).forEach(([ck,v])=>{const[c,k]=ck.split('|');d.pricing[c][k]=v})});toast('Tarifs enregistrés et appliqués à l\'app passager');renderAdmin()},
  'a-promotoggle'(el){mutate(d=>{const p=d.promos[+el.dataset.i];p.active=!p.active});renderAdmin()},
  'a-ticket'(el){mutate(d=>{d.tickets[+el.dataset.i].status=el.dataset.s});toast(el.dataset.s==='resolu'?'Demande résolue':'Demande prise en charge');renderAdmin()},
 });
-document.addEventListener('submit',e=>{if(e.target.id!=='promoform')return;e.preventDefault();const code=$('#np-code',host).value.trim().toUpperCase().replace(/\s+/g,'');if(!/^[A-Z0-9]{3,16}$/.test(code)){toast('Le code doit contenir 3 à 16 lettres ou chiffres','r');return}if(db.promos.some(p=>p.code===code)){toast('Ce code existe déjà','r');return}const type=$('#np-type',host).value,value=+$('#np-val',host).value,max=+$('#np-max',host).value||value;mutate(d=>{d.promos.unshift({code,type,value,max,active:true,uses:0,desc:$('#np-desc',host).value.trim()||(type==='percent'?`−${value} % (max ${max} DH)`:`−${value} DH`)})});toast(`Code ${code} créé et actif`);renderAdmin()});
+document.addEventListener('submit',e=>{if(e.target.id!=='promoform')return;e.preventDefault();const code=$('#np-code',host).value.trim().toUpperCase().replace(/\s+/g,'');if(!/^[A-Z0-9]{3,16}$/.test(code)){toast('Le code doit contenir 3 à 16 lettres ou chiffres','r');return}if(db.promos.some(p=>p.code===code)){toast('Ce code existe déjà','r');return}const type=$('#np-type',host).value,value=+$('#np-val',host).value,max=+$('#np-max',host).value||value;const pdesc=$('#np-desc',host).value.trim();mutate(d=>{d.promos.unshift({code,type,value,max,active:true,uses:0,desc:pdesc||(type==='percent'?`−${value} % (max ${max} DH)`:`−${value} DH`)})});toast(`Code ${code} créé et actif`);renderAdmin()});
 
 /* =========================================================
    ACCUEIL TEST (liens d'accès)
