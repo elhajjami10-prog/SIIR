@@ -372,6 +372,35 @@ h1,h2,h3{font-family:var(--f-display);font-weight:700;margin:0;text-wrap:balance
 .prog{height:8px;border-radius:8px;background:var(--panel2);overflow:hidden}
 .prog i{display:block;height:100%;border-radius:8px;background:linear-gradient(90deg,var(--red-hi),var(--green-hi))}
 
+/* ---------- Authentification ---------- */
+.auth{position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;background:radial-gradient(90% 60% at 80% 0%,rgba(20,168,112,.18),transparent 60%),radial-gradient(70% 50% at 0% 100%,rgba(200,33,63,.16),transparent 60%),var(--bg);overflow:auto}
+.auth-in{flex:1;display:flex;flex-direction:column;gap:14px;padding:calc(20px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px))}
+.auth-top{display:flex;align-items:center;justify-content:space-between;min-height:44px}
+.auth-hero{flex:1;display:grid;place-items:center;align-content:center;gap:18px;text-align:center;padding-block:20px}
+.auth-hero .mark{width:84px}.auth-hero .wm{font-size:64px}
+.auth h1{font-size:24px;line-height:1.15}
+.auth p.sub{margin:0;color:var(--muted);font-size:14px}
+.phonefield{display:flex;gap:8px}
+.phonefield .cc{display:flex;align-items:center;gap:6px;padding:0 12px;border-radius:12px;background:var(--panel2);border:1px solid var(--line2);font-weight:800;white-space:nowrap}
+.phonefield input{flex:1;min-width:0;font-size:18px;font-weight:700;letter-spacing:.04em}
+.otpin{text-align:center;font-family:var(--f-mono);font-size:30px;letter-spacing:.5em;padding:14px 0 14px .5em}
+.err{color:var(--red-hi);font-size:13px;font-weight:600}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--muted);text-align:left}
+.check input{margin-top:3px;accent-color:var(--green)}
+.demo{border:1px dashed var(--line2);border-radius:14px;padding:12px;font-size:12.5px;color:var(--muted);display:grid;gap:6px}
+.demo b{color:var(--fg)}
+.demo button{color:var(--green-hi);font-weight:800;text-align:left}
+.sms{position:absolute;z-index:40;top:calc(10px + env(safe-area-inset-top,0px));left:10px;right:10px;display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:18px;background:rgba(240,244,242,.97);color:#10201B;box-shadow:0 14px 40px rgba(0,0,0,.5);animation:smsIn .45s cubic-bezier(.2,.8,.2,1) both;text-align:left;width:auto}
+.sms .si{width:34px;height:34px;border-radius:10px;background:#2EBD5A;color:#fff;display:grid;place-items:center;flex:none}
+.sms small{display:block;color:#5C6B65;font-size:11px;font-weight:700}
+.sms span{font-size:13.5px;line-height:1.35}
+@keyframes smsIn{from{transform:translateY(-120%)}to{transform:none}}
+.filebox{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--panel2);border:1px dashed var(--line2);font-size:13px;cursor:pointer}
+.filebox input{display:none}
+.filebox.ok{border-style:solid;border-color:rgba(46,229,157,.5)}
+.adm-login{height:100%;display:grid;place-items:center;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));background:radial-gradient(60% 50% at 50% 0%,rgba(20,168,112,.14),transparent 70%),var(--bg)}
+.adm-login form{width:min(400px,100%);display:grid;gap:12px;background:var(--panel);border:1px solid var(--line2);border-radius:22px;padding:24px}
+
 /* ---------- Admin ---------- */
 .admin{height:100%;display:grid;grid-template-columns:248px 1fr;background:var(--bg)}
 .side{border-right:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column;gap:4px;overflow:auto;background:linear-gradient(180deg,#0A1310,#070C0B)}
@@ -662,12 +691,34 @@ function seed(){
   return db;
 }
 let db=null, storeOK=true;
-function load(){
+function load(){const o=loadRaw();bindSession(o);return o}
+function loadRaw(){
   if(storeOK){try{const s=localStorage.getItem(KEY);if(s){const o=JSON.parse(s);if(o&&o.v===2)return o}const n=seed();localStorage.setItem(KEY,JSON.stringify(n));return n}catch(e){storeOK=false}}
   return db||seed();
 }
 function save(){if(db.rides.length>220)db.rides=db.rides.slice(-220);if(storeOK){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){storeOK=false}}}
 function mutate(fn){db=load();const r=fn(db);if(r!==false)save();return r}
+/* ----- Comptes & session (par onglet ; le dernier compte reste mémorisé sur l'appareil) ----- */
+const SESS='siir-session';let SESSION_MEM=null;
+function getSession(){try{return JSON.parse(sessionStorage.getItem(SESS)||localStorage.getItem(SESS+'-last')||'null')}catch(e){return SESSION_MEM}}
+function setSession(v){SESSION_MEM=v;try{if(v){sessionStorage.setItem(SESS,JSON.stringify(v));localStorage.setItem(SESS+'-last',JSON.stringify(v))}else{sessionStorage.removeItem(SESS);localStorage.removeItem(SESS+'-last')}}catch(e){}}
+const fullName=a=>a?(a.first+' '+a.last).trim():'';
+const fmtPhone=n=>'+212 '+String(n).replace(/(\d)(\d{2})(\d{2})(\d{2})(\d{2})/,'$1 $2 $3 $4 $5');
+const normPhone=v=>{let d=String(v||'').replace(/\D/g,'');if(d.startsWith('00212'))d=d.slice(5);else if(d.startsWith('212'))d=d.slice(3);if(d.startsWith('0'))d=d.slice(1);return /^[67]\d{8}$/.test(d)?d:null};
+function bindSession(o){
+  if(!o)return;
+  if(!o.accounts){o.accounts=[{phone:'661234567',first:'Amine',last:'Benjelloun',email:'amine@exemple.ma',createdAt:Date.now()-280*864e5,driver:null},{phone:'612345678',first:'Youssef',last:'El Amrani',email:'',createdAt:Date.now()-400*864e5,driver:null}];const d1=o.drivers.find(x=>x.id==='d1');if(d1&&!d1.owner)d1.owner='612345678'}
+  const s=getSession(),a=s&&o.accounts.find(x=>x.phone===s.phone);
+  if(a){o.me.rider=fullName(a);o.me.phone=fmtPhone(a.phone);o.me.referral=(a.first||'SIIR').toUpperCase().replace(/[^A-Z]/g,'').slice(0,8)+'25'}
+}
+const curAccount=()=>{const s=getSession();return s&&db.accounts.find(a=>a.phone===s.phone)};
+const DSNAP=['n','car','plate','cats','rating','trips','status','docs','sub','x','y','earnToday','phone','cin','permis'];
+function ensureDriverFor(acc){
+  mutate(d=>{const d1=d.drivers.find(x=>x.id==='d1');if(d1.owner===acc.phone)return false;
+    if(d1.owner){const prev=d.accounts.find(a=>a.phone===d1.owner);if(prev)prev.driver=Object.fromEntries(DSNAP.map(k=>[k,d1[k]]))}
+    if(acc.driver)Object.assign(d1,acc.driver);else Object.assign(d1,{n:fullName(acc),status:'none',sub:{status:'none'},car:'',plate:['','',''],cats:['eco'],rating:0,trips:0,earnToday:0,docs:{cin:'missing',permis:'missing',carte:'missing',assurance:'missing',vtc:'missing',casier:'missing'}});
+    d1.owner=acc.phone;d1.online=false;d1.phone=fmtPhone(acc.phone)});
+}
 db=load();
 const drv=id=>db.drivers.find(d=>d.id===id);
 const ACTIVE=['searching','accepted','arrived','ongoing'];
@@ -939,6 +990,101 @@ const modeSeg=m=>`<nav class="modeseg" aria-label="Changer de profil"><a href="#
 const devbar=m=>`<div class="devbar"><div class="brand">${markSVG()}${wordmark()}</div><a href="#passager" class="${m==='p'?'on':''}">${ic('user','sm')} Passager</a><a href="#chauffeur" class="${m==='c'?'on':''}">${ic('car','sm')} Chauffeur</a><a href="#admin">${ic('grid','sm')} Admin</a><a href="#accueil">${ic('home','sm')} Accueil test</a></div>`;
 
 /* =========================================================
+   INSCRIPTION / CONNEXION (OTP par SMS — simulé en version test)
+   ========================================================= */
+const AU={step:'welcome',flow:'signup',phone:'',code:'',exp:0,tries:0,resendAt:0,err:'',first:'',last:'',email:'',cgu:false,target:'passager'};
+let auTimer=null;
+function mountAuth(root,target){
+  AU.target=target;if(AU.step==='done')AU.step='welcome';
+  root.innerHTML=`<div class="stage">${devbar(target==='chauffeur'?'c':'p')}<div class="phone" id="phone"><div class="auth" id="auth"></div><div class="toasts"></div></div></div>`;
+  host=$('#phone',root);renderAuth();clearInterval(auTimer);auTimer=setInterval(()=>{const c=$('#au-cd',host);if(c){const l=Math.ceil((AU.resendAt-Date.now())/1000);if(l<=0)renderAuth();else c.textContent=l}},500);
+}
+function renderAuth(){
+  const el=$('#auth',host);if(!el)return;let h='';
+  const back=b=>`<button class="iconbtn" data-act="au-go" data-s="${b}" aria-label="Retour">${ic('back')}</button>`;
+  if(AU.step==='welcome'){
+    h=`<div class="auth-hero">${markSVG()}${wordmark()}<div><h1>Une seule app pour rouler et conduire</h1><p class="sub" style="margin-top:8px">Inscrivez-vous avec votre numéro de téléphone. Partout au Maroc.</p></div></div>
+    <button class="btn primary block" data-act="au-start" data-f="signup">Créer un compte</button>
+    <button class="btn ghost block" data-act="au-start" data-f="login">J'ai déjà un compte</button>
+    <div class="demo"><b>Comptes de démonstration</b><button data-act="au-demo" data-p="661234567">Amine · passager · 06 61 23 45 67</button><button data-act="au-demo" data-p="612345678">Youssef · chauffeur validé · 06 12 34 56 78</button><span>Ou créez votre propre compte avec n'importe quel numéro marocain (06 ou 07).</span></div>`;
+  }else if(AU.step==='phone'){
+    const su=AU.flow==='signup';
+    h=`<div class="auth-top">${back('welcome')}<span class="eyebrow">${su?'Inscription · 1/3':'Connexion'}</span><span style="width:44px"></span></div>
+    <h1>${su?'Quel est votre numéro ?':'Bon retour sur SIIR!'}</h1><p class="sub">${su?'Nous vous envoyons un code par SMS pour vérifier votre numéro.':'Saisissez le numéro de votre compte, nous vous envoyons un code par SMS.'}</p>
+    <form id="au-phone-f" class="stack"><div class="phonefield"><span class="cc">🇲🇦 +212</span><input class="input" id="au-phone" inputmode="tel" autocomplete="tel-national" placeholder="6 12 34 56 78" value="${esc(AU.phone)}" maxlength="16" aria-label="Numéro de téléphone"></div>
+    ${su?`<label class="check"><input type="checkbox" id="au-cgu" ${AU.cgu?'checked':''}><span>J'accepte les conditions d'utilisation et la politique de confidentialité de SIIR! (loi 09-08).</span></label>`:''}
+    ${AU.err?`<div class="err">${AU.err}</div>`:''}
+    <button class="btn primary block">Recevoir le code par SMS</button></form>`;
+  }else if(AU.step==='otp'){
+    const left=Math.ceil((AU.resendAt-Date.now())/1000);
+    h=`<div class="auth-top">${back('phone')}<span class="eyebrow">${AU.flow==='signup'?'Inscription · 2/3':'Connexion'}</span><span style="width:44px"></span></div>
+    <h1>Entrez le code reçu</h1><p class="sub">Code à 6 chiffres envoyé par SMS au <b style="color:var(--fg)">${fmtPhone(AU.phone)}</b>. <button style="color:var(--green-hi);font-weight:800" data-act="au-go" data-s="phone">Modifier</button></p>
+    <form id="au-otp-f" class="stack"><input class="input otpin" id="au-otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" aria-label="Code de vérification">
+    ${AU.err?`<div class="err">${AU.err}</div>`:''}
+    <button class="btn primary block">Vérifier</button></form>
+    <p class="sub" style="text-align:center">${left>0?`Renvoyer le code dans <b class="mono" id="au-cd">${left}</b> s`:`<button style="color:var(--green-hi);font-weight:800" data-act="au-resend">Renvoyer le code</button>`}</p>
+    <p class="dim" style="font-size:12px;text-align:center;margin:0">Version test : le SMS est simulé et s'affiche en haut de l'écran. Touchez-le pour remplir le code.</p>`;
+  }else if(AU.step==='profile'){
+    h=`<div class="auth-top"><span style="width:44px"></span><span class="eyebrow">Inscription · 3/3</span><span style="width:44px"></span></div>
+    <h1>Faisons connaissance</h1><p class="sub">Votre prénom est visible par le chauffeur pendant la course.</p>
+    <form id="au-prof-f" class="stack"><div class="field"><label for="au-first">Prénom</label><input class="input" id="au-first" autocomplete="given-name" value="${esc(AU.first)}" required></div>
+    <div class="field"><label for="au-last">Nom</label><input class="input" id="au-last" autocomplete="family-name" value="${esc(AU.last)}" required></div>
+    <div class="field"><label for="au-email">E-mail (facultatif, pour les reçus)</label><input class="input" id="au-email" type="email" autocomplete="email" value="${esc(AU.email)}"></div>
+    ${AU.err?`<div class="err">${AU.err}</div>`:''}<button class="btn primary block">Créer mon compte</button></form>`;
+  }
+  el.innerHTML=`<div class="auth-in anim">${h}</div>`;
+  const f=$('form',el);
+  if(f)f.addEventListener('submit',e=>{e.preventDefault();({'au-phone-f':auSendPhone,'au-otp-f':auVerify,'au-prof-f':auCreate})[f.id]()});
+  const fi=$('#au-otp',el)||$('#au-phone',el)||$('#au-first',el);if(fi&&matchMedia('(min-width:640px)').matches)fi.focus();
+  const ot=$('#au-otp',el);if(ot)ot.addEventListener('input',()=>{ot.value=ot.value.replace(/\D/g,'').slice(0,6);if(ot.value.length===6)auVerify()});
+}
+function auSendPhone(){
+  const v=$('#au-phone',host).value;AU.phone=v;const n=normPhone(v);
+  if(AU.flow==='signup')AU.cgu=$('#au-cgu',host).checked;
+  if(!n){AU.err='Numéro invalide. Saisissez un mobile marocain, par exemple 6 12 34 56 78.';return renderAuth()}
+  const exists=db.accounts.some(a=>a.phone===n);
+  if(AU.flow==='signup'&&exists){AU.err='Ce numéro a déjà un compte SIIR!. <button style="color:var(--green-hi);font-weight:800" data-act="au-start" data-f="login">Se connecter</button>';return renderAuth()}
+  if(AU.flow==='login'&&!exists){AU.err='Aucun compte avec ce numéro. <button style="color:var(--green-hi);font-weight:800" data-act="au-start" data-f="signup">Créer un compte</button>';return renderAuth()}
+  if(AU.flow==='signup'&&!AU.cgu){AU.err='Acceptez les conditions d\'utilisation pour continuer.';return renderAuth()}
+  AU.phone=n;auSendCode();
+}
+function auSendCode(){
+  AU.code=String(Math.floor(100000+Math.random()*900000));AU.exp=Date.now()+5*60e3;AU.tries=0;AU.resendAt=Date.now()+30e3;AU.err='';AU.step='otp';renderAuth();
+  mutate(d=>{d.smsLog=d.smsLog||[];d.smsLog.unshift({to:fmtPhone(AU.phone),t:Date.now(),kind:AU.flow==='signup'?'Inscription':'Connexion'});d.smsLog=d.smsLog.slice(0,50)});
+  setTimeout(()=>{$('.sms',host)?.remove();const n=document.createElement('button');n.className='sms';n.innerHTML=`<span class="si">${ic('chat','sm')}</span><span><small>MESSAGES · SIIR! · maintenant</small><b class="mono">${AU.code}</b> est votre code de vérification SIIR!. Valable 5 minutes. Ne le communiquez à personne.</span>`;n.onclick=()=>{const o=$('#au-otp',host);if(o){o.value=AU.code;auVerify()}n.remove()};host.appendChild(n);setTimeout(()=>n.remove(),15000)},1400);
+}
+function auVerify(){
+  const v=($('#au-otp',host)?.value||'').trim();
+  if(Date.now()>AU.exp){AU.err='Ce code a expiré. Demandez un nouveau code.';return renderAuth()}
+  if(AU.tries>=5){AU.err='Trop de tentatives. Demandez un nouveau code.';return renderAuth()}
+  if(v!==AU.code){AU.tries++;AU.err=`Code incorrect. ${5-AU.tries} tentative${5-AU.tries>1?'s':''} restante${5-AU.tries>1?'s':''}.`;return renderAuth()}
+  $('.sms',host)?.remove();AU.err='';
+  if(AU.flow==='signup'){AU.step='profile';return renderAuth()}
+  auFinish(AU.phone,false);
+}
+function auCreate(){
+  AU.first=$('#au-first',host).value.trim();AU.last=$('#au-last',host).value.trim();AU.email=$('#au-email',host).value.trim();
+  if(AU.first.length<2||AU.last.length<2){AU.err='Indiquez votre prénom et votre nom.';return renderAuth()}
+  if(AU.email&&!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(AU.email)){AU.err='Adresse e-mail invalide.';return renderAuth()}
+  mutate(d=>{d.accounts.push({phone:AU.phone,first:AU.first,last:AU.last,email:AU.email,createdAt:Date.now(),driver:null});d.riders.unshift({n:AU.first+' '+AU.last,phone:fmtPhone(AU.phone),trips:0,rating:5,status:'active',since:new Date().toISOString().slice(0,7)})});
+  auFinish(AU.phone,true);
+}
+function auFinish(phone,isNew){
+  setSession({phone,at:Date.now()});db=load();const a=curAccount();
+  Object.assign(AU,{step:'done',phone:'',code:'',first:'',last:'',email:'',cgu:false,err:''});clearInterval(auTimer);
+  route(true);setTimeout(()=>toast(isNew?`Bienvenue sur SIIR!, ${a.first} !`:`Content de vous revoir, ${a.first}`,'', 'user'),300);
+}
+function confirmLogout(){openModal(`<h3>Se déconnecter ?</h3><p class="muted" style="margin:0">Vous devrez saisir un code reçu par SMS pour vous reconnecter.</p><div class="row"><button class="btn ghost" style="flex:1" data-act="r-x">Annuler</button><button class="btn red" style="flex:1" data-act="au-logout">Se déconnecter</button></div>`)}
+Object.assign(ACTS,{
+ 'au-start'(el){AU.flow=el.dataset.f;AU.step='phone';AU.err='';renderAuth()},
+ 'au-go'(el){AU.step=el.dataset.s;AU.err='';renderAuth()},
+ 'au-resend'(){auSendCode();toast('Nouveau code envoyé','', 'chat')},
+ 'au-demo'(el){AU.flow='login';AU.phone=el.dataset.p;auSendCode()},
+ 'au-logout'(){closeModal();if(mode==='chauffeur'&&meD().online)mutate(d=>{d.drivers.find(x=>x.id==='d1').online=false});setSession(null);AU.step='welcome';route(true)},
+ 'r-logout'(){ACTS['r-close']?.();ACTS['d-close']?.();confirmLogout()},
+});
+
+/* =========================================================
    PASSAGER
    ========================================================= */
 const R={screen:'home',pickup:'maarif',dest:null,stop:null,showStop:false,field:'dest',q:'',cat:'eco',pay:'cash',promo:null,schedule:null,svc:'ride',rate:0,tip:0,tags:[],sig:'',rental:null,carSel:null,lastChatN:0};
@@ -953,6 +1099,7 @@ function rQuoteAll(){
   return{p,km,min,surge,promo,q:Object.fromEntries(Object.keys(CATS).map(c=>[c,quote(c,km,min,surge,promo)]))};
 }
 function mountRider(root){
+  if(!curAccount())return mountAuth(root,'passager');
   host=root;R.screen='home';
   root.innerHTML=`<div class="stage">${devbar('p')}<div class="phone" id="phone">
    <div class="mapwrap" id="map"></div>
@@ -1226,10 +1373,11 @@ function sendChat(txt){const id=R.rideId||D.rideId;const from=mode==='chauffeur'
 function renderChat(){const box=$('#chatbox',host);if(!box)return;const r=rideById(R.rideId||D.rideId)||{chat:[]};const me=mode==='chauffeur'?'driver':'rider';box.innerHTML=(r.chat||[]).map(m=>`<div class="msg ${m.from===me?'me':''}">${esc(m.txt)}<small>${hhmm(m.t)}</small></div>`).join('')||'<p class="muted" style="margin:0;font-size:13px">Les messages sont traduits automatiquement (français, darija, arabe, anglais).</p>';box.scrollTop=1e6}
 function riderDrawer(){
   const me=db.me;
-  $('#drawer',host).innerHTML=`<div class="dr-head">${avatar(me.rider)}<div><b>${esc(me.rider)}</b><small>★ 4,92 · Membre depuis 2025</small></div></div>
+  $('#drawer',host).innerHTML=`<div class="dr-head">${avatar(me.rider)}<div><b>${esc(me.rider)}</b><small>${esc(me.phone||'')}</small></div></div>
   <div class="dr-list">
    ${[['historique','clock','Mes trajets'],['paiement','cash','Paiement','Espèces'],['promotions','tag','Promotions'],['parrainage','gift','Invitez des amis','25 DH'],['securite','shield','Sécurité'],['aide','help','Aide & support'],['parametres','gear','Paramètres']].map(([p,i,n,b])=>`<button class="dr-item" data-act="r-page" data-p="${p}">${ic(i)}${n}${b?`<span class="badge">${b}</span>`:''}</button>`).join('')}
   </div>
+  <button class="dr-item" data-act="r-logout">${ic('logout')}Se déconnecter</button>
   <a class="switchcard" href="#chauffeur">${ic('car','lg')}<span><b>Passer en mode chauffeur</b><small>Même compte, gagnez de l'argent avec Siir</small></span></a>`;
 }
 function riderPage(p){
@@ -1246,7 +1394,7 @@ function riderPage(p){
   else if(p==='aide'){title='Aide & support';const faq=[['Comment est calculé le prix ?','Prise en charge + distance + durée, avec un minimum par catégorie. En cas de forte demande, un coefficient s\'applique et il est toujours affiché avant de commander.'],['J\'ai oublié un objet dans le véhicule','Ouvrez Mes trajets, sélectionnez la course et contactez le chauffeur via le numéro relais pendant 24 h.'],['Comment devenir chauffeur ?','Passez en mode chauffeur depuis le menu, puis envoyez CIN, permis, carte grise, assurance et autorisation de transport.'],['Puis-je payer en espèces ?','Oui. Les espèces, la carte bancaire et le portefeuille Siir sont acceptés.']];
     body=`<div class="card"><h3>Questions fréquentes</h3><div class="list">${faq.map(([q,a])=>`<div><button class="li" style="width:100%;text-align:left" data-act="r-faq"><span class="tx"><b>${esc(q)}</b></span>${ic('right','sm')}</button><p class="muted" hidden style="margin:0 0 10px;font-size:13px">${esc(a)}</p></div>`).join('')}</div></div>
     <div class="card stack"><h3>Contacter le support</h3><div class="field"><label for="tk-s">Sujet</label><input class="input" id="tk-s" placeholder="Ex. objet oublié, tarif, incident"></div><div class="field"><label for="tk-b">Description</label><textarea class="input" id="tk-b" rows="3" placeholder="Décrivez votre demande"></textarea></div><button class="btn primary" data-act="r-ticket">Envoyer la demande</button></div>`}
-  else if(p==='parametres'){title='Paramètres';body=`<div class="card"><div class="list"><div class="li">${avatar(me.rider,'sm')}<span class="tx"><b>${esc(me.rider)}</b><small>+212 6 61 23 45 67 · vérifié</small></span></div><div class="li"><span class="qi">${ic('globe')}</span><span class="tx"><b>Langue</b><small>Français · العربية · English · ⵜⴰⵎⴰⵣⵉⵖⵜ</small></span><span class="badge">FR</span></div><div class="li"><span class="tx"><b>Notifications</b><small>Statut des courses et offres</small></span>${toggle(me.settings.notif,'r-set','notif')}</div><div class="li"><span class="qi">${ic('home')}</span><span class="tx"><b>Maison</b><small>${esc(placeOf(me.home).n)}</small></span></div><div class="li"><span class="qi">${ic('work')}</span><span class="tx"><b>Travail</b><small>${esc(placeOf(me.work).n)}</small></span></div></div></div><button class="btn ghost block" data-act="r-reset">${ic('refresh')}Réinitialiser les données de démo</button>`}
+  else if(p==='parametres'){title='Paramètres';body=`<div class="card"><div class="list"><div class="li">${avatar(me.rider,'sm')}<span class="tx"><b>${esc(me.rider)}</b><small>${esc(me.phone||'')} · vérifié</small></span></div><div class="li"><span class="qi">${ic('globe')}</span><span class="tx"><b>Langue</b><small>Français · العربية · English · ⵜⴰⵎⴰⵣⵉⵖⵜ</small></span><span class="badge">FR</span></div><div class="li"><span class="tx"><b>Notifications</b><small>Statut des courses et offres</small></span>${toggle(me.settings.notif,'r-set','notif')}</div><div class="li"><span class="qi">${ic('home')}</span><span class="tx"><b>Maison</b><small>${esc(placeOf(me.home).n)}</small></span></div><div class="li"><span class="qi">${ic('work')}</span><span class="tx"><b>Travail</b><small>${esc(placeOf(me.work).n)}</small></span></div></div></div><button class="btn ghost block" data-act="r-reset">${ic('refresh')}Réinitialiser les données de démo</button>`}
   PH.innerHTML=`<section class="page"><div class="page-h"><button class="iconbtn" data-act="r-pageclose" aria-label="Retour">${ic('back')}</button><h2>${title}</h2></div><div class="page-b">${body}</div></section>`;
 }
 const statusFR=s=>({completed:'Terminée',cancelled:'Annulée',searching:'Recherche',accepted:'Chauffeur en route',arrived:'Chauffeur arrivé',ongoing:'En course',scheduled:'Planifiée'}[s]||s);
@@ -1259,6 +1407,7 @@ let dMap=null,dTimer=null;
 const meD=()=>db.drivers.find(x=>x.id==='d1');
 const myRide=()=>db.rides.find(r=>r.driverId==='d1'&&['accepted','arrived','ongoing'].includes(r.status));
 function mountDriver(root){
+  const acc=curAccount();if(!acc)return mountAuth(root,'chauffeur');ensureDriverFor(acc);db=load();
   root.innerHTML=`<div class="stage">${devbar('c')}<div class="phone" id="phone">
    <div class="mapwrap" id="map"></div>
    <header class="topbar"><button class="iconbtn" data-act="d-menu" aria-label="Menu">${ic('menu')}</button>${modeSeg('c')}<div class="earnpill" role="button" tabindex="0" data-act="d-page" data-p="gains"><small>Aujourd'hui</small><b id="d-earn">${money(todayEarn())}</b></div></header>
@@ -1272,7 +1421,37 @@ function mountDriver(root){
   if(GMODE&&!myRide())geoNow(w=>{mutate(d=>{Object.assign(d.drivers.find(x=>x.id==='d1'),w)});if(dMap)dMap.focus(w.x,w.y,1.6)});
 }
 function todayEarn(){return 286+(meD()?.earnToday||0)}
-function subPending(id='d1'){return db.subPayments.find(p=>p.driverId===id&&p.status==='pending')}
+const myPay=p=>p.driverId==='d1'&&(p.owner||'')===(meD().owner||'');
+function subPending(id='d1'){return db.subPayments.find(p=>(id==='d1'?myPay(p):p.driverId===id)&&p.status==='pending')}
+function driverStatusCard(me){
+  if(me.status==='pending')return `<div style="display:grid;gap:6px;text-align:center;justify-items:center"><span class="badge a">Dossier en cours de vérification</span><div class="status-h">Merci ${esc(me.n.split(' ')[0])}, votre dossier est envoyé</div><small class="muted">Notre équipe vérifie vos documents sous 48 h. Vous pourrez ensuite choisir votre abonnement et passer en ligne.</small></div><div class="card"><div class="list"><div class="li"><span class="tx"><b>${esc(me.car)}</b><small>${esc(CATS[me.cats[0]].n)}</small></span>${plate(me.plate)}</div></div></div><small class="dim" style="text-align:center">Démo : validez le dossier dans Admin › Chauffeurs, cet écran se met à jour tout seul.</small>`;
+  if(me.status==='suspended')return `<div style="display:grid;gap:6px;text-align:center"><span class="badge r" style="justify-self:center">Compte chauffeur suspendu</span><div class="status-h">Contactez le support SIIR!</div><small class="muted">Assistance chauffeurs : +212 5 22 00 47 00</small></div>`;
+  return `<div style="display:grid;gap:6px"><div class="eyebrow" style="color:var(--red-hi)">Mode chauffeur</div><div class="status-h">Devenez chauffeur SIIR!</div><small class="muted">0 % de commission : vous gardez 100 % de vos courses, payées en espèces. Il suffit d'un abonnement à partir de 180 DH la semaine.</small></div>
+  <div class="stats3"><div class="stat"><b>0 %</b><small>Commission</small></div><div class="stat"><b>48 h</b><small>Validation</small></div><div class="stat"><b>180 DH</b><small>par semaine</small></div></div>
+  <button class="btn red block" data-act="d-register">Commencer mon inscription</button>`;
+}
+const DOCS=[['cin','Carte nationale (CIN), recto et verso'],['permis','Permis de conduire'],['carte','Carte grise du véhicule'],['assurance','Attestation d\'assurance'],['vtc','Autorisation / agrément de transport'],['casier','Fiche anthropométrique']];
+function driverRegisterPage(){
+  const acc=curAccount();
+  $('#pagehost',host).innerHTML=`<section class="page"><div class="page-h"><button class="iconbtn" data-act="d-pageclose" aria-label="Retour">${ic('back')}</button><h2>Inscription chauffeur</h2></div><form class="page-b" id="dreg">
+  <div class="card stack"><h3>Identité</h3><div class="field"><label>Nom complet</label><input class="input" value="${esc(fullName(acc))}" disabled></div>
+  <div class="f2"><div class="field"><label for="dr-cin">N° de CIN</label><input class="input" id="dr-cin" placeholder="BE123456" required maxlength="10" style="text-transform:uppercase"></div><div class="field"><label for="dr-permis">N° de permis</label><input class="input" id="dr-permis" placeholder="12/345678" required maxlength="14"></div></div></div>
+  <div class="card stack"><h3>Véhicule</h3><div class="f2"><div class="field"><label for="dr-car">Marque et modèle</label><input class="input" id="dr-car" placeholder="Dacia Logan" required></div><div class="field"><label for="dr-color">Couleur</label><input class="input" id="dr-color" placeholder="Blanc" required></div></div>
+  <div class="field"><label>Immatriculation</label><div class="row"><input class="input mono" id="dr-p1" inputmode="numeric" placeholder="12345" maxlength="5" required style="flex:2"><select class="input" id="dr-p2" style="flex:1">${['أ','ب','د','هـ','و','ط'].map(x=>`<option>${x}</option>`).join('')}</select><input class="input mono" id="dr-p3" inputmode="numeric" placeholder="6" maxlength="2" required style="flex:1"></div></div>
+  <div class="field"><label for="dr-cat">Catégorie souhaitée</label><select class="input" id="dr-cat">${['eco','comfort','femme','xl','moto','black','colis'].map(c=>`<option value="${c}">${CATS[c].n}</option>`).join('')}</select></div></div>
+  <div class="card stack"><h3>Documents</h3><small class="muted">Photos nettes, format JPG, PNG ou PDF.</small>${DOCS.map(([k,n])=>`<label class="filebox" id="fb-${k}">${ic('doc')}<span style="flex:1"><b style="display:block;font-size:13px">${n}</b><small class="muted" id="fn-${k}">Ajouter un fichier</small></span><input type="file" accept="image/*,.pdf" data-doc="${k}"></label>`).join('')}</div>
+  <div class="err" id="dr-err" hidden></div>
+  <button class="btn red block">Envoyer mon dossier</button></form></section>`;
+  $$('#dreg input[type=file]',host).forEach(i=>i.addEventListener('change',()=>{const f=i.files[0];if(f){$('#fn-'+i.dataset.doc,host).textContent=f.name;$('#fb-'+i.dataset.doc,host).classList.add('ok')}}));
+  $('#dreg',host).addEventListener('submit',e=>{e.preventDefault();const g=id=>$('#'+id,host).value.trim();
+    const docs=Object.fromEntries(DOCS.map(([k])=>[k,$(`#dreg input[data-doc="${k}"]`,host).files.length?'review':'missing']));
+    const err=$('#dr-err',host);
+    if(!/^[A-Z]{1,2}\d{4,7}$/i.test(g('dr-cin'))){err.textContent='N° de CIN invalide (ex. BE123456).';err.hidden=false;return}
+    if(!/^\d{3,5}$/.test(g('dr-p1'))||!/^\d{1,2}$/.test(g('dr-p3'))){err.textContent='Immatriculation invalide (ex. 12345 | أ | 6).';err.hidden=false;return}
+    if(Object.values(docs).filter(v=>v==='review').length<2){err.textContent='Ajoutez au moins votre CIN et votre permis (version test : n\'importe quelle image convient).';err.hidden=false;return}
+    mutate(d=>{const d1=d.drivers.find(x=>x.id==='d1');Object.assign(d1,{n:fullName(acc),cin:g('dr-cin').toUpperCase(),permis:g('dr-permis'),car:g('dr-car')+' · '+g('dr-color'),plate:[g('dr-p1'),$('#dr-p2',host).value,g('dr-p3')],cats:[$('#dr-cat',host).value],status:'pending',docs,rating:0,trips:0,sub:{status:'none'}})});
+    $('#pagehost',host).innerHTML='';toast('Dossier envoyé · vérification sous 48 h','', 'doc');renderDriver()});
+}
 function planPicker(){return `<div class="list">${PLANS.map(p=>`<button class="li" style="width:100%;text-align:left" data-act="d-plan" data-id="${p.id}"><span class="qi">${D.plan===p.id?ic('check'):ic('ticket')}</span><span class="tx"><b>${p.n}${p.id==='month'?' <span class="badge r">Meilleur prix</span>':p.id==='twoWeeks'?' <span class="badge">Populaire</span>':''}</b><small>${(p.price/p.days).toFixed(1).replace('.',',')} DH / jour</small></span><b class="mono">${p.price} DH</b></button>`).join('')}</div>
   <div class="eyebrow">Moyen de paiement</div><div class="chips">${Object.entries(SUBM).map(([k,m])=>`<button class="chip ${D.method===k?'on':''}" data-act="d-method" data-k="${k}">${ic(m.i,'sm')}${m.n}</button>`).join('')}</div>
   <small class="muted">${D.method==='cmi'?'Paiement sécurisé CMI (3-D Secure) · activation immédiate.':D.method==='virement'?'Activation dès réception du virement, après validation par l\'équipe SIIR! (24 h max).':'Payez dans une agence Wafacash avec votre référence · activation après validation.'}</small>
@@ -1280,11 +1459,11 @@ function planPicker(){return `<div class="list">${PLANS.map(p=>`<button class="l
 function driverPaywall(){const pend=subPending();
   if(pend)return `<div class="card" style="border-color:rgba(244,183,64,.4)"><div class="eyebrow" style="color:var(--amber)">Paiement en attente</div><div class="status-h" style="margin:4px 0">${esc(SUBM[pend.method].n)} · ${pend.amount} DH</div><small class="muted">Référence <b class="mono">${pend.ref}</b>. Votre abonnement s'active dès que l'admin valide le paiement (onglet Admin › Abonnements).</small></div><button class="btn ghost block" data-act="d-instr">Voir les instructions de paiement</button>`;
   return `<div style="display:grid;gap:4px"><div class="eyebrow" style="color:var(--red-hi)">Abonnement requis</div><div class="status-h">Activez un abonnement pour recevoir des courses</div><small class="muted">0 % de commission : vous gardez 100 % de ce que les passagers vous paient.</small></div>${planPicker()}`}
-function subPage(){const sb=subOf(meD()),pays=db.subPayments.filter(p=>p.driverId==='d1');
+function subPage(){const sb=subOf(meD()),pays=db.subPayments.filter(myPay);
   return `${sb?`<div class="card" style="background:linear-gradient(135deg,#0A835A,#0B3F2E);border:0"><div class="eyebrow" style="color:#cfeee0">Abonnement actif</div><div class="big-num">${esc(PLANS.find(x=>x.id===sb.plan).n)}</div><small style="opacity:.85">Expire le ${dfmt(sb.expiresAt)}</small></div>`:''}
   ${subPending()?driverPaywall():`<div class="card stack"><h3>${sb?'Renouveler (prolonge la durée)':'Choisir une formule'}</h3>${planPicker()}</div>`}
   <div class="card"><h3>Historique des paiements</h3><div class="list">${pays.map(p=>`<div class="li"><span class="tx"><b>${esc(PLANS.find(x=>x.id===p.plan).n)} · ${esc(SUBM[p.method].n)}</b><small>${dfmt(p.at)} · ${p.ref}</small></span><span class="pill ${p.status==='paid'?'completed':p.status==='rejected'?'cancelled':'pending'}">${p.status==='paid'?'Payé':p.status==='rejected'?'Refusé':'En attente'}</span></div>`).join('')||'<p class="muted" style="font-size:13px">Aucun paiement.</p>'}</div></div>`}
-function activateSub(d,pay){const dr=d.drivers.find(x=>x.id===pay.driverId);const pl=PLANS.find(x=>x.id===pay.plan);const base=subOf(dr)?dr.sub.expiresAt:Date.now();dr.sub={status:'active',plan:pay.plan,method:pay.method,expiresAt:base+pl.days*864e5};pay.status='paid';pay.paidAt=Date.now()}
+function activateSub(d,pay){let dr=d.drivers.find(x=>x.id===pay.driverId);if(pay.owner&&dr&&dr.owner!==pay.owner){const ac=d.accounts.find(a=>a.phone===pay.owner);if(ac&&ac.driver)dr=ac.driver}const pl=PLANS.find(x=>x.id===pay.plan);const base=subOf(dr)?dr.sub.expiresAt:Date.now();dr.sub={status:'active',plan:pay.plan,method:pay.method,expiresAt:base+pl.days*864e5};pay.status='paid';pay.paidAt=Date.now()}
 function driverScene(now){
   const sc={routes:[],markers:[],cars:[]};const me=meD();
   const r=D.rideId&&rideById(D.rideId);
@@ -1301,11 +1480,12 @@ function dFit(){if(!dMap)return;dMap.bottom=$('#sheet',host)?.offsetHeight||0;co
   if(r&&['accepted','arrived','ongoing'].includes(r.status)){dMap.fit(r.status==='accepted'?[r.dstart,r.pickup]:[r.pickup,r.dest],60);return}
   const q=D.req&&rideById(D.req);if(q){dMap.fit([me,q.pickup,q.dest],50);return}
   dMap.focus(me.x,me.y,me.online?1.25:1.7)}
-function driverSig(){const r=D.rideId&&rideById(D.rideId);return [meD().online,D.req,D.rateFor,r?r.status:'',!!subOf(meD()),!!subPending()].join('|')}
+function driverSig(){const r=D.rideId&&rideById(D.rideId);return [meD().status,meD().online,D.req,D.rateFor,r?r.status:'',!!subOf(meD()),!!subPending()].join('|')}
 function renderDriver(){
   const sh=$('#sheet',host);if(!sh)return;const me=meD(),dd=db.driver;let h='';
   const r=D.rideId&&rideById(D.rideId);
-  if(D.rateFor){const rr=rideById(D.rateFor);h=`<div style="text-align:center;display:grid;gap:8px;justify-items:center"><span class="badge">Course terminée</span><div class="big-num">${money(rr.price)}</div><small class="muted">À encaisser en espèces · 100 % pour vous, 0 % de commission</small><div class="status-h" style="margin-top:6px">Notez ${esc(rr.riderName.split(' ')[0])}</div></div><div class="stars">${[1,2,3,4,5].map(i=>`<button data-act="d-star" data-v="${i}" class="${D.rateV>=i?'on':''}" aria-label="${i} étoiles">${ic('star')}</button>`).join('')}</div><button class="btn primary block" data-act="d-ratesend">Continuer</button>`}
+  if(me.status!=='approved'){h=driverStatusCard(me)}
+  else if(D.rateFor){const rr=rideById(D.rateFor);h=`<div style="text-align:center;display:grid;gap:8px;justify-items:center"><span class="badge">Course terminée</span><div class="big-num">${money(rr.price)}</div><small class="muted">À encaisser en espèces · 100 % pour vous, 0 % de commission</small><div class="status-h" style="margin-top:6px">Notez ${esc(rr.riderName.split(' ')[0])}</div></div><div class="stars">${[1,2,3,4,5].map(i=>`<button data-act="d-star" data-v="${i}" class="${D.rateV>=i?'on':''}" aria-label="${i} étoiles">${ic('star')}</button>`).join('')}</div><button class="btn primary block" data-act="d-ratesend">Continuer</button>`}
   else if(r&&['accepted','arrived','ongoing'].includes(r.status)){
     const p=phaseProgress(r);
     const head=r.status==='accepted'?`Prise en charge · <em>${esc(r.pickup.n)}</em>`:r.status==='arrived'?`En attente de <em>${esc(r.riderName.split(' ')[0])}</em>`:`Destination · <em>${esc(r.dest.n)}</em>`;
@@ -1337,7 +1517,7 @@ function renderDriver(){
 function rerenderDriverSub(){const pg=$('#pagehost .page-h h2',host);if(pg&&pg.textContent==='Abonnement')driverPage('abonnement');renderDriver()}
 function driverTick(){
   db=load();const me=meD(),now=Date.now();
-  const sk=JSON.stringify([me.sub,db.subPayments.filter(p=>p.driverId==='d1').map(p=>p.status)]);if(D.subKey&&D.subKey!==sk){D.subKey=sk;if(subOf(me))toast('Abonnement activé · vous pouvez passer en ligne','', 'ticket');rerenderDriverSub()}D.subKey=sk;
+  const sk=JSON.stringify([me.sub,me.status,db.subPayments.filter(myPay).map(p=>p.status)]);if(D.subKey&&me.status==='approved'&&!D.subKey.includes('"approved"')){toast('Dossier validé ! Choisissez votre abonnement pour passer en ligne.','', 'check')}if(D.subKey&&D.subKey!==sk){D.subKey=sk;if(subOf(me))toast('Abonnement activé · vous pouvez passer en ligne','', 'ticket');rerenderDriverSub()}D.subKey=sk;
   if(me.online&&!subOf(me)){mutate(d=>{d.drivers.find(x=>x.id==='d1').online=false});renderDriver();return}
   const r=D.rideId&&rideById(D.rideId);
   if(r&&r.status==='cancelled'){toast('Le passager a annulé la course','r');D.rideId=null;renderDriver();return}
@@ -1373,9 +1553,10 @@ Object.assign(ACTS,{
  'd-plan'(el){D.plan=el.dataset.id;rerenderDriverSub()},
  'd-method'(el){D.method=el.dataset.k;rerenderDriverSub()},
  'd-subpay'(){const pl=PLANS.find(p=>p.id===D.plan);if(D.method==='cmi'){openModal(`<h3>${ic('card')} Paiement sécurisé CMI</h3><div class="trip"><div class="kv"><span>Abonnement</span><span>${pl.n}</span></div><div class="kv tot"><span>Montant</span><span>${pl.price} DH</span></div></div><p class="muted" style="margin:0;font-size:13px">Version test : aucun débit réel. En production, redirection vers la page de paiement CMI (3-D Secure).</p><button class="btn primary block" data-act="d-cmiok">Simuler le paiement</button>`);return}
-   const pay={id:'P'+uid(),driverId:'d1',plan:pl.id,method:D.method,amount:pl.price,ref:'SIIR-'+(100000+Math.floor(Math.random()*900000)),at:Date.now(),status:'pending'};mutate(d=>{d.subPayments.unshift(pay)});ACTS['d-instr']();rerenderDriverSub()},
- 'd-cmiok'(){const pl=PLANS.find(p=>p.id===D.plan);mutate(d=>{const pay={id:'P'+uid(),driverId:'d1',plan:pl.id,method:'cmi',amount:pl.price,ref:'SIIR-'+(100000+Math.floor(Math.random()*900000)),at:Date.now(),status:'pending'};d.subPayments.unshift(pay);activateSub(d,pay)});closeModal();toast('Paiement accepté · abonnement activé','', 'ticket');rerenderDriverSub()},
+   const pay={id:'P'+uid(),driverId:'d1',owner:meD().owner,plan:pl.id,method:D.method,amount:pl.price,ref:'SIIR-'+(100000+Math.floor(Math.random()*900000)),at:Date.now(),status:'pending'};mutate(d=>{d.subPayments.unshift(pay)});ACTS['d-instr']();rerenderDriverSub()},
+ 'd-cmiok'(){const pl=PLANS.find(p=>p.id===D.plan);mutate(d=>{const pay={id:'P'+uid(),driverId:'d1',owner:d.drivers.find(x=>x.id==='d1').owner,plan:pl.id,method:'cmi',amount:pl.price,ref:'SIIR-'+(100000+Math.floor(Math.random()*900000)),at:Date.now(),status:'pending'};d.subPayments.unshift(pay);activateSub(d,pay)});closeModal();toast('Paiement accepté · abonnement activé','', 'ticket');rerenderDriverSub()},
  'd-instr'(){const p=subPending();if(!p)return;openModal(`<h3>${p.method==='virement'?'Effectuez le virement':'Payez chez Wafacash'}</h3><div class="trip"><div class="kv"><span>Bénéficiaire</span><span>SIIR SARL</span></div>${p.method==='virement'?'<div class="kv"><span>Banque / RIB</span><span>À configurer</span></div>':''}<div class="kv"><span>Montant</span><span>${p.amount} DH</span></div><div class="kv tot"><span>Référence</span><span>${p.ref}</span></div></div><p class="muted" style="margin:0;font-size:13px">Indiquez la référence ${p.method==='virement'?'dans le motif du virement':'au guichet'}. L'activation se fait dès validation par l'équipe SIIR! — dans cette démo, depuis Admin › Abonnements.</p><button class="btn ghost block" data-act="r-copy" data-t="${p.ref}">${ic('copy')}Copier la référence</button>`)},
+ 'd-register'(){driverRegisterPage()},
  'd-online'(){if(!subOf(meD())){toast('Abonnement requis pour passer en ligne','r');return}mutate(d=>{d.drivers.find(x=>x.id==='d1').online=true});D.onlineAt=Date.now();D.lastSim=Date.now()-4000;toast('Vous êtes en ligne. Les demandes vont arriver.','', 'power');renderDriver()},
  'd-offline'(){mutate(d=>{d.drivers.find(x=>x.id==='d1').online=false});D.req=null;toast('Vous êtes hors ligne','r','power');renderDriver()},
  'd-set'(el){const k=el.dataset.k;mutate(d=>{d.driver[k]=!d.driver[k]});el.classList.toggle('on');el.setAttribute('aria-checked',el.classList.contains('on'))},
@@ -1397,6 +1578,7 @@ Object.assign(ACTS,{
 function driverDrawer(){const me=meD();
   $('#drawer',host).innerHTML=`<div class="dr-head">${avatar(me.n,'',me.rating.toFixed(2))}<div><b>${esc(me.n)}</b><small>${esc(me.car)}</small><div style="margin-top:6px">${plate(me.plate)}</div></div></div>
   <div class="dr-list">${[['abonnement','ticket','Abonnement',subOf(me)?'Actif':'Inactif'],['gains','chart','Gains',money(todayEarn())],['historique','clock','Historique des courses'],['documents','doc','Documents'],['vehicule','car','Véhicule'],['bonus','target','Défis & bonus',db.driver.bonusDone+'/'+db.driver.bonusGoal],['aide','help','Support chauffeur'],['parametres','gear','Paramètres']].map(([p,i,n,b])=>`<button class="dr-item" data-act="d-page" data-p="${p}">${ic(i)}${n}${b?`<span class="badge">${b}</span>`:''}</button>`).join('')}</div>
+  <button class="dr-item" data-act="r-logout">${ic('logout')}Se déconnecter</button>
   <a class="switchcard g" href="#passager">${ic('user','lg')}<span><b>Passer en mode passager</b><small>Commandez une course avec le même compte</small></span></a>`}
 function driverPage(p){
   const me=meD(),PH=$('#pagehost',host);let title='',body='';
@@ -1420,9 +1602,16 @@ function driverPage(p){
 const A={view:'dash',filter:'all',q:''};let aMap=null,aTimer=null;
 const AV=[['dash','grid','Tableau de bord'],['live','map','Carte en direct'],['rides','route','Courses'],['drivers','car','Chauffeurs'],['riders','users','Passagers'],['subs','ticket','Abonnements'],['pricing','tag','Tarification'],['promos','gift','Promotions'],['zones','zap','Zones & majoration'],['support','help','Support'],['settings','gear','Paramètres']];
 function mountAdmin(root){
+  let ok=false;try{ok=sessionStorage.getItem('siir-admin')==='1'}catch(e){ok=window.__siirAdmin}
+  if(!ok){host=root;root.innerHTML=`<div class="adm-login"><form id="adm-f"><div class="row">${markSVG()}${wordmark()}</div><div><h2 style="font-size:20px">Console admin</h2><p class="muted" style="margin:4px 0 0">Accès réservé à l'équipe SIIR!.</p></div>
+    <div class="field"><label for="adm-e">E-mail</label><input class="input" id="adm-e" type="email" autocomplete="username" required></div>
+    <div class="field"><label for="adm-p">Mot de passe</label><input class="input" id="adm-p" type="password" autocomplete="current-password" required></div>
+    <div class="err" id="adm-err" hidden>E-mail ou mot de passe incorrect.</div><button class="btn primary block">Se connecter</button>
+    <div class="demo"><b>Accès de démonstration</b><span>admin@siir.ma · Siir2026!</span><button type="button" data-act="adm-fill">Remplir automatiquement</button></div></form><div class="toasts"></div></div>`;
+    $('#adm-f',root).addEventListener('submit',e=>{e.preventDefault();if($('#adm-e',root).value.trim().toLowerCase()==='admin@siir.ma'&&$('#adm-p',root).value==='Siir2026!'){try{sessionStorage.setItem('siir-admin','1')}catch(x){window.__siirAdmin=true}route(true)}else $('#adm-err',root).hidden=false});return}
   root.innerHTML=`<div class="admin" id="adm"><aside class="side"><div class="brand">${markSVG()}<div>${wordmark()}<small>CONSOLE ADMIN</small></div></div>
    ${AV.map(([k,i,n])=>`<button class="nav ${A.view===k?'on':''}" data-act="a-nav" data-v="${k}">${ic(i)}${n}${k==='drivers'?`<span class="badge a" id="b-pend"></span>`:k==='support'?`<span class="badge r" id="b-tk"></span>`:k==='subs'?`<span class="badge a" id="b-sub"></span>`:''}</button>`).join('')}
-   <div class="foot"><a href="#passager">${ic('user','sm')}App passager</a><a href="#chauffeur">${ic('car','sm')}App chauffeur</a><a href="#accueil">${ic('home','sm')}Accueil test</a></div></aside>
+   <div class="foot"><button class="nav" data-act="adm-logout">${ic('logout','sm')}Déconnexion admin</button><a href="#passager">${ic('user','sm')}App passager</a><a href="#chauffeur">${ic('car','sm')}App chauffeur</a><a href="#accueil">${ic('home','sm')}Accueil test</a></div></aside>
    <main class="main"><div class="main-in" id="amain"></div></main><div class="toasts"></div></div>`;
   host=$('#adm',root);renderAdmin();clearInterval(aTimer);aTimer=setInterval(()=>{const before=JSON.stringify([db.rides.length,db.rides.filter(r=>ACTIVE.includes(r.status)).map(r=>r.status).join(),db.tickets.length,db.drivers.map(d=>d.online+d.status).join(),db.subPayments.map(p=>p.status).join()]);db=load();const after=JSON.stringify([db.rides.length,db.rides.filter(r=>ACTIVE.includes(r.status)).map(r=>r.status).join(),db.tickets.length,db.drivers.map(d=>d.online+d.status).join(),db.subPayments.map(p=>p.status).join()]);if(before!==after&&['dash','rides','drivers','support','live','subs'].includes(A.view))renderAdmin(true)},1500);
 }
@@ -1473,8 +1662,9 @@ const AVIEW={
  live(){return `<div class="mh"><div><h1>Carte en direct</h1><p>Chauffeurs, demandes et courses en cours à Casablanca.</p></div><span class="live-dot">Temps réel</span></div><div class="g2"><div class="panel" style="padding:8px"><div class="livemap tall" id="livemap"><div class="legend"><span><i style="background:#2EE59D"></i>Libre</span><span><i style="background:#56B7FF"></i>En course</span><span><i style="background:#F0405F"></i>Votre chauffeur test</span></div></div></div><div class="panel" id="live-side">${liveSide()}</div></div>`},
  rides(){const f=A.filter;let list=[...db.rides].sort((a,b)=>b.t.created-a.t.created);if(f==='active')list=list.filter(r=>ACTIVE.includes(r.status));else if(f!=='all')list=list.filter(r=>r.status===f);
   return `<div class="mh"><div><h1>Courses</h1><p>${db.rides.length} courses enregistrées dans la démo.</p></div><div class="tabs">${[['all','Toutes'],['active','Actives'],['completed','Terminées'],['cancelled','Annulées'],['scheduled','Planifiées']].map(([k,n])=>`<button class="tab ${f===k?'on':''}" data-act="a-filter" data-f="${k}">${n}</button>`).join('')}</div></div><div class="panel">${ridesTable(list.slice(0,80))}</div>`},
- drivers(){return `<div class="mh"><div><h1>Chauffeurs</h1><p>Validation des dossiers, suspension et suivi qualité.</p></div></div><div class="panel"><div class="tbl-w"><table><thead><tr><th>Chauffeur</th><th>Véhicule</th><th>Catégories</th><th class="r">Note</th><th class="r">Courses</th><th>Documents</th><th>Statut</th><th>En ligne</th><th></th></tr></thead><tbody>${db.drivers.map(d=>{const docsOk=Object.values(d.docs).every(v=>v==='ok');return `<tr><td><div class="who">${avatar(d.n,'sm')}<div><b>${esc(d.n)}</b><br><small class="muted">${esc(d.phone)}</small></div></div></td><td>${esc(d.car)}<br>${plate(d.plate)}</td><td>${d.cats.map(c=>`<span class="badge n">${CATS[c].n.replace('Siir ','')}</span>`).join(' ')}</td><td class="r mono">${d.rating?d.rating.toFixed(2):'—'}</td><td class="r mono">${d.trips.toLocaleString('fr-FR')}</td><td>${docsOk?'<span class="badge">6/6</span>':`<span class="badge a">${Object.values(d.docs).filter(v=>v==='ok').length}/6</span>`}</td><td>${statusPill(d.status)}</td><td>${d.online?'<span class="live-dot">oui</span>':'<span class="dim">non</span>'}</td><td>${d.status==='pending'?`<button class="btn primary sm" data-act="a-drv" data-id="${d.id}" data-s="approved">Valider</button>`:d.status==='approved'?`<button class="btn ghost sm" data-act="a-drv" data-id="${d.id}" data-s="suspended">Suspendre</button>`:`<button class="btn ghost sm" data-act="a-drv" data-id="${d.id}" data-s="approved">Réactiver</button>`}</td></tr>`}).join('')}</tbody></table></div></div>`},
- riders(){return `<div class="mh"><div><h1>Passagers</h1><p>${db.riders.length} comptes dans la démo · 9 870 actifs sur la plateforme.</p></div></div><div class="panel"><div class="tbl-w"><table><thead><tr><th>Passager</th><th>Téléphone</th><th class="r">Courses</th><th class="r">Note</th><th>Paiement</th><th>Inscrit</th><th>Statut</th><th></th></tr></thead><tbody>${db.riders.map((r,i)=>`<tr><td><div class="who">${avatar(r.n,'sm')}<b>${esc(r.n)}</b></div></td><td class="mono">${esc(r.phone)}</td><td class="r mono">${r.trips}</td><td class="r mono">${r.rating.toFixed(2)}</td><td>Espèces</td><td class="mono">${r.since}</td><td>${statusPill(r.status)}</td><td><button class="btn ghost sm" data-act="a-rider" data-i="${i}">${r.status==='active'?'Bloquer':'Débloquer'}</button></td></tr>`).join('')}</tbody></table></div></div>`},
+ drivers(){return `<div class="mh"><div><h1>Chauffeurs</h1><p>Validation des dossiers, suspension et suivi qualité.</p></div></div><div class="panel"><div class="tbl-w"><table><thead><tr><th>Chauffeur</th><th>Véhicule</th><th>Catégories</th><th class="r">Note</th><th class="r">Courses</th><th>Documents</th><th>Statut</th><th>En ligne</th><th></th></tr></thead><tbody>${db.drivers.filter(d=>d.status!=='none').map(d=>{const docsOk=Object.values(d.docs).every(v=>v==='ok');return `<tr><td><div class="who">${avatar(d.n,'sm')}<div><b>${esc(d.n)}</b><br><small class="muted">${esc(d.phone)}</small></div></div></td><td>${esc(d.car)}<br>${plate(d.plate)}</td><td>${d.cats.map(c=>`<span class="badge n">${CATS[c].n.replace('Siir ','')}</span>`).join(' ')}</td><td class="r mono">${d.rating?d.rating.toFixed(2):'—'}</td><td class="r mono">${d.trips.toLocaleString('fr-FR')}</td><td>${docsOk?'<span class="badge">6/6</span>':`<span class="badge a">${Object.values(d.docs).filter(v=>v==='ok').length}/6</span>`}</td><td>${statusPill(d.status)}</td><td>${d.online?'<span class="live-dot">oui</span>':'<span class="dim">non</span>'}</td><td>${d.status==='pending'?`<button class="btn primary sm" data-act="a-drv" data-id="${d.id}" data-s="approved">Valider</button>`:d.status==='approved'?`<button class="btn ghost sm" data-act="a-drv" data-id="${d.id}" data-s="suspended">Suspendre</button>`:`<button class="btn ghost sm" data-act="a-drv" data-id="${d.id}" data-s="approved">Réactiver</button>`}</td></tr>`}).join('')}</tbody></table></div></div>`},
+ riders(){return `<div class="mh"><div><h1>Passagers</h1><p>${db.riders.length} comptes dans la démo · ${db.accounts.length} inscrits par téléphone · 9 870 actifs sur la plateforme.</p></div></div>
+  <div class="panel"><div class="panel-h"><h3>Derniers SMS de vérification envoyés</h3><span class="badge n">Simulés en démo</span></div>${(db.smsLog||[]).slice(0,8).map(x=>`<div class="li"><span class="tx"><b class="mono">${esc(x.to)}</b><small>${esc(x.kind)} · ${dfmt(x.t)}</small></span><span class="badge">Envoyé</span></div>`).join('')||'<p class="muted" style="font-size:13px">Aucun SMS envoyé pour l\'instant.</p>'}</div><div class="panel"><div class="tbl-w"><table><thead><tr><th>Passager</th><th>Téléphone</th><th class="r">Courses</th><th class="r">Note</th><th>Paiement</th><th>Inscrit</th><th>Statut</th><th></th></tr></thead><tbody>${db.riders.map((r,i)=>`<tr><td><div class="who">${avatar(r.n,'sm')}<b>${esc(r.n)}</b></div></td><td class="mono">${esc(r.phone)}</td><td class="r mono">${r.trips}</td><td class="r mono">${r.rating.toFixed(2)}</td><td>Espèces</td><td class="mono">${r.since}</td><td>${statusPill(r.status)}</td><td><button class="btn ghost sm" data-act="a-rider" data-i="${i}">${r.status==='active'?'Bloquer':'Débloquer'}</button></td></tr>`).join('')}</tbody></table></div></div>`},
  pricing(){return `<div class="mh"><div><h1>Tarification</h1><p>Les modifications s'appliquent immédiatement aux estimations de l'app passager.</p></div><button class="btn primary sm" data-act="a-savepricing">${ic('check','sm')}Enregistrer</button></div>
   <div class="panel"><div class="between"><div><h3 style="font-size:14px">Modèle économique</h3><small class="muted">Aucune commission : les chauffeurs paient un abonnement, les passagers paient la course en espèces. Prix arrondis au dirham.</small></div><button class="btn ghost sm" data-act="a-nav" data-v="subs">Voir les abonnements</button></div></div>
   <div class="pgrid">${Object.keys(CATS).map(c=>{const p=db.pricing[c];return `<div class="pcard"><div class="h">${vehSVG(c)}<div><b>${CATS[c].n}</b><br><small class="muted">${esc(CATS[c].d)}</small></div></div><div class="f2">${[['base','Prise en charge (DH)'],['km','Par km (DH)'],['min','Par minute (DH)'],['minFare','Course minimum (DH)']].map(([k,n])=>`<div class="field"><label for="pp-${c}-${k}">${n}</label><input class="input mono" type="number" step="0.05" min="0" id="pp-${c}-${k}" value="${p[k]}"></div>`).join('')}</div><small class="dim mono">Ex. 8 km / 22 min : ${money(quote(c,8,22,1,null).total)}</small></div>`}).join('')}</div>`},
@@ -1497,6 +1687,8 @@ const AVIEW={
 function subRevenue(){return db.subPayments.filter(p=>p.status==='paid'&&Date.now()-(p.paidAt||p.at)<30*864e5).reduce((a,p)=>a+p.amount,0)+186400}
 function ridesTable(list){return `<div class="tbl-w"><table><thead><tr><th>ID</th><th>Date</th><th>Passager</th><th>Chauffeur</th><th>Trajet</th><th>Catégorie</th><th>Paiement</th><th class="r">Montant</th><th>Statut</th></tr></thead><tbody>${list.map(r=>`<tr><td class="mono dim">${esc(r.id)}</td><td class="mono">${dfmt(r.t.at||r.t.created)}</td><td>${esc(r.riderName)}</td><td>${r.driverId&&drv(r.driverId)?esc(drv(r.driverId).n):'<span class="dim">—</span>'}</td><td>${esc(r.pickup.n)} → ${esc(r.dest.n)}</td><td>${esc(CATS[r.cat].n)}</td><td>${esc(PAY[r.payment].n)}</td><td class="r mono">${money(r.price)}</td><td><span class="pill ${r.status}">${statusFR(r.status)}</span></td></tr>`).join('')||'<tr><td colspan="9" class="muted">Aucune course.</td></tr>'}</tbody></table></div>`}
 Object.assign(ACTS,{
+ 'adm-fill'(){$('#adm-e').value='admin@siir.ma';$('#adm-p').value='Siir2026!'},
+ 'adm-logout'(){try{sessionStorage.removeItem('siir-admin')}catch(e){}window.__siirAdmin=false;route(true)},
  'a-nav'(el){A.view=el.dataset.v;renderAdmin();$('.main',host).scrollTop=0},
  'a-filter'(el){A.filter=el.dataset.f;renderAdmin()},
  'a-drv'(el){const{id,s}=el.dataset;mutate(d=>{const x=d.drivers.find(y=>y.id===id);x.status=s;if(s==='approved'){Object.keys(x.docs).forEach(k=>x.docs[k]='ok');if(!x.rating)x.rating=5}if(s==='suspended')x.online=false});toast(s==='approved'?'Chauffeur validé':'Chauffeur suspendu',s==='approved'?'':'r');renderAdmin()},
@@ -1523,7 +1715,7 @@ function mountLaunch(root){
      <a class="acard a" href="#admin"><span class="ai">${ic('grid','lg')}</span><span><h3>Accès admin</h3><p>Tableau de bord, carte live, tarifs, promos</p><div class="url">${esc(base)}#admin</div></span>${ic('right')}</a>
     </div></section>
    <section class="l-sec"><h2>Scénario de test en temps réel</h2><div class="steps">
-    <div class="step"><b>Ouvrez deux onglets</b>L'un sur l'accès chauffeur, l'autre sur l'accès passager, dans le même navigateur.</div>
+    <div class="step"><b>Ouvrez deux onglets et connectez-vous</b>Chauffeur : compte de démo Youssef. Passager : Amine, ou créez votre compte avec votre numéro (le SMS est simulé).</div>
     <div class="step"><b>Abonnez-vous puis passez en ligne</b>Côté chauffeur, choisissez une formule (paiement CMI simulé) puis touchez GO. Désactivez « Courses simulées » pour ne recevoir que vos vraies demandes.</div>
     <div class="step"><b>Commandez</b>Côté passager, choisissez une destination et Siir Eco. La demande arrive chez le chauffeur avec un compte à rebours.</div>
     <div class="step"><b>Suivez la course</b>Acceptez, arrivez, saisissez le PIN affiché chez le passager, terminez. L'admin voit tout en direct.</div>

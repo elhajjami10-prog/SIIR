@@ -21,6 +21,13 @@ Ouvrez `index.html` (ou la version publiée) avec l'une de ces ancres :
 
 **Scénario temps réel :** ouvrez l'onglet chauffeur et l'onglet passager dans le même navigateur → chauffeur « GO » → passager commande → le chauffeur accepte, arrive, saisit le PIN, termine → l'admin voit tout en direct.
 
+## Inscription et connexion (version test)
+- **Passager / chauffeur** : numéro marocain (06/07) → code à 6 chiffres par SMS → prénom, nom, e-mail facultatif. Connexion : numéro → code SMS. Le SMS est **simulé** : il s'affiche en haut de l'écran.
+- Comptes de démo : Amine (passager) `06 61 23 45 67`, Youssef (chauffeur validé) `06 12 34 56 78`.
+- **Devenir chauffeur** : CIN, permis, véhicule, immatriculation, documents → validation dans Admin › Chauffeurs → abonnement → en ligne.
+- **Admin** : `admin@siir.ma` / `Siir2026!` (démo uniquement).
+- Production : brancher un fournisseur SMS (Firebase Phone Auth, Twilio Verify, Infobip…) et un backend qui génère et vérifie le code.
+
 ## Fonctionnalités
 - **Passager** : recherche de lieux, Maison/Travail, arrêt intermédiaire, 7 catégories (Eco, Confort, Femme, XL, Moto, Black, Colis), prix en DH, majoration, codes promo, paiement en espèces, courses planifiées, suivi live, PIN, chat, appel masqué, centre de sécurité & SOS, partage, notation, pourboire, reçu, historique, parrainage, support, **Siir Drive** (autopartage à la minute).
 - **Chauffeur** : en ligne/hors ligne, carte de chaleur, demandes avec compte à rebours, acceptation auto, mode destination, navigation, PIN, abonnement obligatoire (CMI / virement / Wafacash), gains (jour/semaine) sans commission, documents, véhicule, défis & bonus.
