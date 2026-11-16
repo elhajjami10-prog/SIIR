@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="assets/siir-mark.svg">
 <link rel="manifest" href="manifest.webmanifest">
+
 </head>
 <body>
 <title>SIIR! Mobilité</title>
@@ -584,7 +585,8 @@ const PLACES=[
 ];
 const PL=Object.fromEntries(PLACES.map(p=>[p.id,p]));
 const KM_PER_U=0.0185;
-function manhattan(a,b){const y=Math.max(a.y,b.y);return [{x:a.x,y:a.y},{x:a.x,y},{x:b.x,y},{x:b.x,y:b.y}]}
+function grid(a,b){const y=Math.max(a.y,b.y);return [{x:a.x,y:a.y},{x:a.x,y},{x:b.x,y},{x:b.x,y:b.y}]}
+const manhattan=(a,b)=>GMODE?roadPath(a,b):grid(a,b);
 function routePath(a,stop,b){return stop?[...manhattan(a,stop),...manhattan(stop,b).slice(1)]:manhattan(a,b)}
 function pathLen(p){let L=0;for(let i=1;i<p.length;i++)L+=Math.hypot(p[i].x-p[i-1].x,p[i].y-p[i-1].y);return L}
 function pointAt(p,t){const L=pathLen(p);let d=clamp(t,0,1)*L;for(let i=1;i<p.length;i++){const s=Math.hypot(p[i].x-p[i-1].x,p[i].y-p[i-1].y);if(s===0)continue;if(d<=s){const k=d/s;return{x:lerp(p[i-1].x,p[i].x,k),y:lerp(p[i-1].y,p[i].y,k),a:Math.atan2(p[i].y-p[i-1].y,p[i].x-p[i-1].x)}}d-=s}const l=p[p.length-1],q=p[p.length-2]||l;return{x:l.x,y:l.y,a:Math.atan2(l.y-q.y,l.x-q.x)}}
@@ -618,7 +620,7 @@ const CHAT_DRIVER=['Bonjour, j\'arrive dans quelques minutes.','Je suis devant, 
 const CHAT_RIDER=['Bonjour, je suis devant la pharmacie.','Merci, j\'arrive !','Je porte une veste rouge.','D\'accord 👍'];
 
 /* ---------- Données (seed) ---------- */
-const KEY='siir-demo-db-v2';
+let KEY='siir-demo-db-v2';
 function seed(){
   const rnd=mulberry(42), pick=a=>a[Math.floor(rnd()*a.length)];
   const drivers=[
@@ -652,7 +654,7 @@ function seed(){
     const a=pick(PLACES);let b=pick(PLACES);if(b===a)b=PLACES[(PLACES.indexOf(a)+3)%PLACES.length];
     const cat=pick(['eco','eco','eco','comfort','comfort','femme','xl','moto','black','colis']);
     const dr=dIds.find(d=>d.cats.includes(cat)&&rnd()>.3)||dIds[0];
-    const p=routePath(a,null,b),km=tripKm(p),min=tripMin(km),pr=pricing[cat];
+    const p=grid(a,b),km=tripKm(p),min=tripMin(km),pr=pricing[cat];
     const total=round05(Math.max(pr.minFare,pr.base+pr.km*km+pr.min*min));
     const t=now-(i*2.6+rnd()*2)*3600e3;
     db.rides.push({id:'R'+(8800-i),origin:'hist',riderName:i<9?'Amine Benjelloun':pick(riders).n,pickup:{n:a.n,x:a.x,y:a.y},dest:{n:b.n,x:b.x,y:b.y},stop:null,cat,km,min,price:total,surge:1,payment:'cash',status:rnd()<.1?'cancelled':'completed',driverId:dr.id,t:{created:t,phase:t,done:t+min*60e3},dur:{arrive:1,trip:1},rating:rnd()<.85?5:4,tip:rnd()<.2?10:0,chat:[],city:'Casablanca'});
@@ -721,6 +723,7 @@ function buildBase(){
   return c;
 }
 function makeAmbient(n,seedN=3){
+  if(GMODE)return [];
   const rnd=mulberry(seedN),cars=[];
   for(let i=0;i<n;i++){let x,y,k=0;do{x=Math.round(rnd()*21)*G;y=Math.round(rnd()*21)*G;k++}while(!inland(x,y,14)&&k<50);cars.push({x,y,tx:x,ty:y,sp:22+rnd()*26,a:0,rnd})}
   return cars;
@@ -798,6 +801,108 @@ class SiirMap{
   }
 }
 
+
+/* =========================================================
+   GOOGLE MAPS (actif quand une clé est injectée au build : window.SIIR_GMAPS_KEY)
+   Coordonnées internes "monde" (1 unité ≈ 18,5 m) <-> latitude/longitude réelles.
+   ========================================================= */
+const GKEY=(typeof window!=='undefined'&&window.SIIR_GMAPS_KEY)||'';
+var GMODE=false;
+const LNG0=-7.75,LAT0=33.66,KX=5000,KY=6000;
+const w2ll=(x,y)=>({lat:LAT0-y/KY,lng:LNG0+x/KX});
+const ll2w=(lat,lng)=>({x:(lng-LNG0)*KX,y:(LAT0-lat)*KY});
+const REAL={maarif:[33.5803,-7.6355],twin:[33.5869,-7.6333],hassan2:[33.6083,-7.6328],casaport:[33.6000,-7.6160],voyageurs:[33.5905,-7.5905],mall:[33.5763,-7.7066],aindiab:[33.5934,-7.6880],cfc:[33.5660,-7.6600],anfa:[33.5980,-7.6560],gauthier:[33.5900,-7.6280],medina:[33.5990,-7.6200],derb:[33.5780,-7.6000],technopark:[33.5466,-7.6338],californie:[33.5380,-7.6050],sidimaarouf:[33.5250,-7.6450],hayhassani:[33.5650,-7.6900],ainsebaa:[33.6060,-7.5350],airport:[33.3675,-7.5898]};
+const REALZ={z1:[33.5860,-7.6330],z2:[33.6000,-7.6170],z3:[33.5660,-7.6600],z4:[33.5920,-7.6880],z5:[33.5905,-7.5905],z6:[33.3675,-7.5898]};
+const REALF={c1:[33.5835,-7.6370],c2:[33.5900,-7.6420],c3:[33.5790,-7.6290],c4:[33.5700,-7.6520],c5:[33.5930,-7.6260]};
+function applyRealGeo(){
+  PLACES.forEach(p=>{const r=REAL[p.id];if(r)Object.assign(p,ll2w(r[0],r[1]))});
+  FLEET.forEach(c=>{const r=REALF[c.id];if(r)Object.assign(c,ll2w(r[0],r[1]))});
+  KEY='siir-demo-db-v2-gmaps';db=load();
+  let ch=false;db.zones.forEach(z=>{const r=REALZ[z.id];if(r){const w=ll2w(r[0],r[1]);if(Math.abs(z.x-w.x)>1){Object.assign(z,w);ch=true}}});if(ch)save();
+}
+function decodePoly(str){let i=0,lat=0,lng=0;const out=[];while(i<str.length){for(const k of[0,1]){let b,sh=0,res=0;do{b=str.charCodeAt(i++)-63;res|=(b&31)<<sh;sh+=5}while(b>=32);const d=res&1?~(res>>1):res>>1;if(k===0)lat+=d;else lng+=d}out.push(ll2w(lat/1e5,lng/1e5))}return out}
+const RCACHE={},RPEND={};
+function roadPath(a,b){
+  const k=[a.x,a.y,b.x,b.y].map(v=>Math.round(v)).join(',');
+  if(RCACHE[k])return RCACHE[k];
+  if(!RPEND[k]){RPEND[k]=1;const A=w2ll(a.x,a.y),B=w2ll(b.x,b.y);
+    fetch('https://routes.googleapis.com/directions/v2:computeRoutes',{method:'POST',headers:{'Content-Type':'application/json','X-Goog-Api-Key':GKEY,'X-Goog-FieldMask':'routes.polyline.encodedPolyline'},body:JSON.stringify({origin:{location:{latLng:{latitude:A.lat,longitude:A.lng}}},destination:{location:{latLng:{latitude:B.lat,longitude:B.lng}}},travelMode:'DRIVE'})})
+    .then(r=>r.json()).then(j=>{const e=j.routes&&j.routes[0]&&j.routes[0].polyline&&j.routes[0].polyline.encodedPolyline;if(e){const pts=decodePoly(e);const st=Math.hypot(b.x-a.x,b.y-a.y),f=Math.hypot(pts[0].x-a.x,pts[0].y-a.y)+Math.hypot(pts[pts.length-1].x-b.x,pts[pts.length-1].y-b.y);if(f>60||pathLen(pts)>st*4+80)return;pts[0]={x:a.x,y:a.y};pts[pts.length-1]={x:b.x,y:b.y};RCACHE[k]=pts;onRouteReady()}}).catch(()=>{});}
+  return grid(a,b);
+}
+let routeTimer=null;
+function onRouteReady(){clearTimeout(routeTimer);routeTimer=setTimeout(()=>{if(mode==='passager'&&R.screen==='choose')renderRider()},120)}
+function geoNow(cb,fail){try{navigator.geolocation.getCurrentPosition(p=>cb(ll2w(p.coords.latitude,p.coords.longitude)),e=>fail&&fail(e),{enableHighAccuracy:true,timeout:12000,maximumAge:30000})}catch(e){fail&&fail(e)}}
+let gSearchT=null,gSearchQ='';
+function gSearch(q){
+  clearTimeout(gSearchT);if(!GMODE||q.trim().length<2){R.gres=[];return}
+  gSearchT=setTimeout(()=>{gSearchQ=q;const c=placeOf(R.pickup)||PLACES[0],ll=w2ll(c.x,c.y);
+    fetch('https://places.googleapis.com/v1/places:autocomplete',{method:'POST',headers:{'Content-Type':'application/json','X-Goog-Api-Key':GKEY},body:JSON.stringify({input:q,includedRegionCodes:['ma'],languageCode:'fr',locationBias:{circle:{center:{latitude:ll.lat,longitude:ll.lng},radius:30000}}})})
+    .then(r=>r.json()).then(j=>{if(gSearchQ!==R.q||R.screen!=='search')return;R.gres=(j.suggestions||[]).filter(x=>x.placePrediction).slice(0,6).map(x=>({id:x.placePrediction.placeId,n:(x.placePrediction.structuredFormat&&x.placePrediction.structuredFormat.mainText.text)||x.placePrediction.text.text,d:(x.placePrediction.structuredFormat&&x.placePrediction.structuredFormat.secondaryText&&x.placePrediction.structuredFormat.secondaryText.text)||''}));renderRider()}).catch(()=>{})},350);
+}
+function gPlace(id){return fetch('https://places.googleapis.com/v1/places/'+encodeURIComponent(id)+'?languageCode=fr',{headers:{'X-Goog-Api-Key':GKEY,'X-Goog-FieldMask':'location,displayName,formattedAddress'}}).then(r=>r.json())}
+function makeMap(wrap,opts){return GMODE?new GSiirMap(wrap,opts):new SiirMap(wrap,opts)}
+class GSiirMap{
+  constructor(wrap,opts={}){
+    this.wrap=wrap;this.top=opts.top??60;this.bottom=0;this.scene=opts.scene||(()=>({}));this.heat=!!opts.heat;
+    const md=document.createElement('div');md.style.cssText='position:absolute;inset:0';wrap.appendChild(md);
+    this.c=document.createElement('canvas');this.c.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none';wrap.appendChild(this.c);this.g=this.c.getContext('2d');
+    const st=PLACES[0];
+    this.map=new google.maps.Map(md,{center:w2ll(st.x,st.y),zoom:13,disableDefaultUI:true,gestureHandling:'greedy',clickableIcons:false,keyboardShortcuts:false});
+    this.ov=new google.maps.OverlayView();this.ov.onAdd=()=>{};this.ov.draw=()=>{};this.ov.onRemove=()=>{};this.ov.setMap(this.map);
+    this.ro=new ResizeObserver(()=>this.resize());this.ro.observe(wrap);this.resize();
+    this.loop=this.loop.bind(this);requestAnimationFrame(this.loop);
+  }
+  resize(){const r=this.wrap.getBoundingClientRect();const d=Math.min(window.devicePixelRatio||1,2);this.W=r.width;this.H=r.height;this.d=d;this.c.width=Math.max(1,r.width*d);this.c.height=Math.max(1,r.height*d)}
+  fit(pts,pad=50){pts=pts.filter(Boolean);if(!pts.length)return;if(pts.length===1||pts.every(p=>Math.hypot(p.x-pts[0].x,p.y-pts[0].y)<5))return this.focus(pts[0].x,pts[0].y,2);const b=new google.maps.LatLngBounds();pts.forEach(p=>b.extend(w2ll(p.x,p.y)));this.map.fitBounds(b,{top:this.top+pad,bottom:this.bottom+pad,left:pad,right:pad})}
+  focus(x,y,s){const z=s?clamp(Math.round(Math.log2(7049*s)),3,18):this.map.getZoom();this.map.setZoom(z);this.map.setCenter(w2ll(x,y));this.map.panBy(0,(this.bottom-this.top)/2)}
+  px(x,y){const pr=this.ov.getProjection();if(!pr)return null;const p=pr.fromLatLngToContainerPixel(new google.maps.LatLng(w2ll(x,y)));return p?[p.x,p.y]:null}
+  loop(now){if(!this.c.isConnected){this.ro.disconnect();return}this.draw(now);requestAnimationFrame(this.loop)}
+  draw(now){
+    const g=this.g,{W,H,d}=this;g.setTransform(d,0,0,d,0,0);g.clearRect(0,0,W,H);if(!this.ov.getProjection())return;
+    const sc=this.scene(now)||{};
+    if(this.heat||sc.heat){for(const z of db.zones){if(z.m<=1)continue;const c=this.px(z.x,z.y),e=this.px(z.x+z.r,z.y);if(!c||!e)continue;const r=Math.max(8,Math.abs(e[0]-c[0]));const rg=g.createRadialGradient(c[0],c[1],0,c[0],c[1],r);const a=clamp((z.m-1)*.5,.08,.35);rg.addColorStop(0,`rgba(200,33,63,${a})`);rg.addColorStop(.6,`rgba(244,160,40,${a*.5})`);rg.addColorStop(1,'rgba(244,160,40,0)');g.fillStyle=rg;g.beginPath();g.arc(c[0],c[1],r,0,7);g.fill()}}
+    (sc.routes||[]).forEach(r=>this.route(r.pts,r.color,r.progress,now));
+    (sc.markers||[]).forEach(m=>this.marker(m,now));
+    (sc.cars||[]).forEach(c=>this.car(c.x,c.y,c.a||0,c.color||'#0F8B5F',c.big));
+    (sc.labels||[]).forEach(l=>{const p=this.px(l.x,l.y);if(!p)return;g.font='700 12px Manrope, sans-serif';const w=g.measureText(l.t).width+18;g.fillStyle='#0B1411';g.beginPath();g.roundRect?g.roundRect(p[0]-w/2,p[1]-40,w,24,9):g.rect(p[0]-w/2,p[1]-40,w,24);g.fill();g.fillStyle='#fff';g.textAlign='center';g.fillText(l.t,p[0],p[1]-23);g.textAlign='left'});
+  }
+  route(pts,color,progress=0,now){
+    const g=this.g,sp=pts.map(p=>this.px(p.x,p.y)).filter(Boolean);if(sp.length<2)return;
+    const path=()=>{g.beginPath();sp.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]))};
+    g.save();g.lineJoin='round';g.lineCap='round';
+    path();g.strokeStyle='rgba(11,20,17,.28)';g.lineWidth=9;g.stroke();
+    path();g.strokeStyle=color;g.lineWidth=5.5;g.stroke();
+    path();g.setLineDash([2,10]);g.lineDashOffset=-now/40;g.strokeStyle='rgba(255,255,255,.9)';g.lineWidth=2;g.stroke();g.setLineDash([]);
+    if(progress>0){let L=0;for(let i=1;i<sp.length;i++)L+=Math.hypot(sp[i][0]-sp[i-1][0],sp[i][1]-sp[i-1][1]);let rem=L*progress;g.beginPath();g.moveTo(sp[0][0],sp[0][1]);for(let i=1;i<sp.length&&rem>0;i++){const sl=Math.hypot(sp[i][0]-sp[i-1][0],sp[i][1]-sp[i-1][1]);if(!sl)continue;const k=Math.min(1,rem/sl);g.lineTo(lerp(sp[i-1][0],sp[i][0],k),lerp(sp[i-1][1],sp[i][1],k));rem-=sl}g.strokeStyle='rgba(120,130,128,.9)';g.lineWidth=6;g.stroke()}
+    g.restore();
+  }
+  marker(m,now){
+    const g=this.g,p=this.px(m.x,m.y);if(!p)return;const[x,y]=p;
+    if(m.type==='pickup'||m.type==='me'){const col=m.type==='me'?'#1E6FD9':'#0F8B5F';const ph=(now%1800)/1800;g.beginPath();g.arc(x,y,8+ph*18,0,7);g.strokeStyle=col;g.globalAlpha=1-ph;g.lineWidth=2;g.stroke();g.globalAlpha=1;g.beginPath();g.arc(x,y,9,0,7);g.fillStyle='#fff';g.fill();g.beginPath();g.arc(x,y,6.5,0,7);g.fillStyle=col;g.fill()}
+    else if(m.type==='dest'){g.save();g.translate(x,y);g.fillStyle='#fff';g.fillRect(-9,-9,18,18);g.fillStyle='#B81D3A';g.fillRect(-7,-7,14,14);g.fillStyle='#fff';g.fillRect(-2.5,-2.5,5,5);g.restore()}
+    else if(m.type==='stop'){g.beginPath();g.arc(x,y,7,0,7);g.fillStyle='#D98A0B';g.fill();g.strokeStyle='#fff';g.lineWidth=2;g.stroke()}
+    else if(m.type==='rental'){const col=m.sel?'#0F8B5F':'#D98A0B';g.beginPath();g.arc(x,y,13,0,7);g.fillStyle='#fff';g.fill();g.strokeStyle=col;g.lineWidth=2.5;g.stroke();g.fillStyle=col;g.font='800 12px Manrope';g.textAlign='center';g.fillText('P',x,y+4);g.textAlign='left'}
+  }
+  car(x,y,a,color,big){
+    const g=this.g,p=this.px(x,y);if(!p)return;const k=big?1.3:1;
+    g.save();g.translate(p[0],p[1]);g.rotate(a);g.scale(k,k);g.shadowColor='rgba(0,0,0,.35)';g.shadowBlur=6;
+    g.fillStyle=color;g.beginPath();g.roundRect?g.roundRect(-11,-6,22,12,4):g.rect(-11,-6,22,12);g.fill();g.shadowBlur=0;g.strokeStyle='#fff';g.lineWidth=1.5;g.stroke();
+    g.fillStyle='rgba(200,235,220,.9)';g.fillRect(2,-4.5,5,9);g.fillStyle='#FFF6C8';g.fillRect(9,-5,1.6,2.4);g.fillRect(9,2.6,1.6,2.4);g.restore();
+  }
+}
+function boot(){
+  if(!GKEY){route();return}
+  let done=false;
+  const fallback=msg=>{GMODE=false;mode='';location.reload()};
+  window.gm_authFailure=()=>{console.warn('Clé Google Maps refusée : vérifiez la restriction de site et les API activées.');try{sessionStorage.setItem('siir-gm-off','1')}catch(e){}fallback()};
+  try{if(sessionStorage.getItem('siir-gm-off')){route();return}}catch(e){}
+  window.__siirGm=()=>{if(done)return;done=true;GMODE=true;applyRealGeo();route()};
+  const sc=document.createElement('script');sc.async=true;sc.src='https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(GKEY)+'&v=weekly&language=fr&region=MA&callback=__siirGm';
+  sc.onerror=()=>{if(!done){done=true;route()}};document.head.appendChild(sc);
+  setTimeout(()=>{if(!done){done=true;route()}},10000);
+}
+
 /* ---------- UI communs ---------- */
 let host=null; // conteneur des toasts/modales courant
 function toast(msg,kind='',icon){const t=$('.toasts',host);if(!t)return;const el=document.createElement('div');el.className='toast '+kind;el.innerHTML=ic(icon||(kind==='r'?'alert':'check'))+'<span>'+esc(msg)+'</span>';t.appendChild(el);setTimeout(()=>{el.style.transition='opacity .4s';el.style.opacity='0';setTimeout(()=>el.remove(),400)},2800)}
@@ -834,10 +939,15 @@ function mountRider(root){
    <div class="scrim" id="scrim" data-act="r-close"></div><aside class="drawer" id="drawer"></aside>
    <div id="pagehost"></div><div class="toasts"></div></div></div>`;
   host=$('#phone',root);
-  rMap=new SiirMap($('#map',root),{scene:riderScene,top:64,ambient:18});
+  rMap=makeMap($('#map',root),{scene:riderScene,top:64,ambient:18});
   const cur=rideMine();if(cur){R.screen=cur.status==='searching'?'searching':'ride'}
   else{const done=db.rides.find(r=>r.origin==='rider'&&r.status==='completed'&&!r.rated&&Date.now()-r.t.done<10*60e3);if(done){R.screen='rate';R.rateId=done.id}}
   renderRider();clearInterval(rTimer);rTimer=setInterval(riderTick,500);
+  if(GMODE)riderLocate(false);
+}
+function riderLocate(manual){
+  geoNow(w=>{PL.me={id:'me',n:'Ma position',d:'Position GPS actuelle',...w};if(R.screen==='home'||manual)R.pickup='me';if(R.screen==='home')renderRider();if(rMap)rMap.focus(w.x,w.y,manual?2.4:1.9);if(manual)toast('Position GPS mise à jour','', 'locate')},
+    ()=>{if(manual)toast('Localisation refusée. Autorisez la position dans les réglages du navigateur.','r','locate')});
 }
 function riderScene(now){
   const sc={routes:[],markers:[],cars:[]};
@@ -852,7 +962,8 @@ function riderScene(now){
   }
   const a=placeOf(R.pickup),b=R.dest&&placeOf(R.dest);
   if(b&&['choose','searching','search'].includes(R.screen)){const s=R.stop&&placeOf(R.stop);sc.routes.push({pts:routePath(a,s,b),color:'#2EE59D'});if(s)sc.markers.push({type:'stop',...s});sc.markers.push({type:'dest',...b});if(R.screen==='choose'){const qa=rQuoteAll();if(qa)sc.labels=[{x:b.x,y:b.y,t:`${qa.min} min · ${qa.km.toFixed(1).replace('.',',')} km`}]}}
-  sc.markers.push({type:'pickup',...a});
+  sc.markers.push({type:R.pickup==='me'?'me':'pickup',...a});
+  if(GMODE&&R.screen==='home'){const t=now/1000;[[60,20],[-45,55],[30,-70],[-80,-25],[95,70]].forEach(([dx,dy],i)=>sc.cars.push({x:a.x+dx+Math.sin(t/7+i)*12,y:a.y+dy+Math.cos(t/9+i)*10,a:t/7+i,color:'#0B1411'}))}
   return sc;
 }
 function rFitMap(){
@@ -904,7 +1015,9 @@ const RS={
    ${R.showStop?`<label class="rin s ${R.field==='stop'?'foc':''}"><input id="in-stop" data-f="stop" placeholder="Ajouter un arrêt" value="${R.field==='stop'?esc(R.q):v(R.stop)}" autocomplete="off"><button data-act="r-rmstop" aria-label="Retirer l'arrêt">${ic('close','sm')}</button></label>`:''}
    <label class="rin d ${R.field==='dest'?'foc':''}"><input id="in-dest" data-f="dest" placeholder="Où allez-vous ?" value="${R.field==='dest'?esc(R.q):v(R.dest)}" autocomplete="off">${R.showStop?'':`<button data-act="r-addstop" aria-label="Ajouter un arrêt">${ic('plus','sm')}</button>`}</label>
   </div>
-  <div class="eyebrow">Lieux à Casablanca</div><div class="plist">${list}</div>`;
+  ${GMODE&&R.gres&&R.gres.length?`<div class="eyebrow">Résultats Google Maps</div><div class="plist">${R.gres.map(g=>`<button class="pitem" data-act="r-gpick" data-id="${esc(g.id)}"><span class="qi">${ic('pin','sm')}</span><span class="tx"><b>${esc(g.n)}</b><small>${esc(g.d)}</small></span></button>`).join('')}</div>`:''}
+  ${GMODE&&PL.me&&R.field==='pickup'?`<button class="pitem" data-act="r-pick" data-id="me"><span class="qi">${ic('locate','sm')}</span><span class="tx"><b>Ma position</b><small>Position GPS actuelle</small></span></button>`:''}
+  <div class="eyebrow">${GMODE?'Lieux populaires à Casablanca':'Lieux à Casablanca'}</div><div class="plist">${list}</div>`;
  },
  choose(){
   const qa=rQuoteAll();const cats=R.svc==='colis'?['colis']:RIDE_CATS;if(!cats.includes(R.cat))R.cat=cats[0];
@@ -1004,7 +1117,7 @@ function riderSim(){
         const realOnline=d.drivers.find(x=>x.id==='d1').online&&d.drivers.find(x=>x.id==='d1').cats.includes(r.cat)&&!(r.declined||[]).includes('d1');
         if(now-r.t.created>(realOnline?20000:6500)){
           const pool=d.drivers.filter(x=>x.status==='approved'&&x.id!=='d1'&&x.cats.includes(r.cat));const dr=pool.sort((a,b)=>Math.hypot(a.x-r.pickup.x,a.y-r.pickup.y)-Math.hypot(b.x-r.pickup.x,b.y-r.pickup.y))[0]||d.drivers[1];
-          let sx=r.pickup.x+(Math.random()<.5?-1:1)*(70+Math.random()*80),sy=r.pickup.y+40+Math.random()*90;sx=clamp(sx,20,980);sy=clamp(sy,coastY(sx)+30,980);
+          let sx=r.pickup.x+(Math.random()<.5?-1:1)*(70+Math.random()*80),sy=r.pickup.y+40+Math.random()*90;if(!GMODE){sx=clamp(sx,20,980);sy=clamp(sy,coastY(sx)+30,980)}
           Object.assign(r,{status:'accepted',driverId:dr.id,sim:'auto',dstart:{x:sx,y:sy},t:{...r.t,phase:now}});ch=true;
         }
       }else if(r.sim==='auto'){
@@ -1028,11 +1141,12 @@ function createRide(){
 Object.assign(ACTS,{
  'r-menu'(){riderDrawer();$('#drawer',host).classList.add('on');$('#scrim',host).classList.add('on')},
  'r-close'(){$('#drawer',host)?.classList.remove('on');$('#scrim',host)?.classList.remove('on')},
- 'r-locate'(){const a=placeOf(R.pickup);rMap.focus(a.x,a.y,2);toast('Position : '+a.n,'', 'locate')},
+ 'r-locate'(){if(GMODE){riderLocate(true);return}const a=placeOf(R.pickup);rMap.focus(a.x,a.y,2);toast('Position : '+a.n,'', 'locate')},
  'r-home'(){R.screen='home';R.dest=null;R.stop=null;R.showStop=false;R.carSel=null;R.svc='ride';renderRider()},
  'r-search'(){if(rideMine())return;R.screen='search';R.field=R.dest?'dest':'dest';R.q='';renderRider()},
  'r-go'(el){R.dest=el.dataset.id;if(R.dest===R.pickup)R.pickup='twin';R.screen='choose';renderRider()},
  'r-svc'(el){const s=el.dataset.s;if(s==='drive'){R.screen='drive';R.carSel=null;renderRider();return}R.svc=s==='colis'?'colis':'ride';R.cat=s==='moto'?'moto':s==='colis'?'colis':'eco';R.screen='search';R.field='dest';R.q='';renderRider()},
+ 'r-gpick'(el){const id=el.dataset.id;gPlace(id).then(j=>{if(!j.location){toast('Lieu introuvable','r');return}const w=ll2w(j.location.latitude,j.location.longitude);PL['g_'+id]={id:'g_'+id,n:(j.displayName&&j.displayName.text)||'Lieu',d:j.formattedAddress||'',...w};R.gres=[];ACTS['r-pick']({dataset:{id:'g_'+id}})}).catch(()=>toast('Recherche indisponible','r'))},
  'r-pick'(el){const id=el.dataset.id;if(R.field==='pickup')R.pickup=id;else if(R.field==='stop')R.stop=id;else R.dest=id;R.q='';
    if(R.dest&&R.dest===R.pickup){toast('Le départ et la destination sont identiques','r');R.dest=null;renderRider();return}
    if(R.field==='pickup'||R.field==='stop'){R.field=R.dest?'dest':'dest';if(R.dest){R.screen='choose'}renderRider();return}
@@ -1084,7 +1198,7 @@ Object.assign(ACTS,{
  'r-ticket'(){const s=$('#tk-s',host).value.trim(),b=$('#tk-b',host).value.trim();if(!s||!b){toast('Indiquez un sujet et une description','r');return}mutate(d=>{d.tickets.unshift({id:'T-'+(1043+d.tickets.length),from:d.me.rider,role:'Passager',subj:s,body:b,status:'ouvert',t:Date.now()})});toast('Demande envoyée. Réponse sous 2 h en moyenne.','', 'help');riderPage('aide')},
  'r-faq'(el){const n=el.nextElementSibling;n.hidden=!n.hidden},
 });
-document.addEventListener('input',e=>{const f=e.target.dataset?.f;if(!f||R.screen!=='search')return;R.field=f;R.q=e.target.value;const pos=e.target.selectionStart;renderRider();const n=$('#in-'+f,host);if(n){n.focus();n.setSelectionRange(pos,pos)}});
+document.addEventListener('input',e=>{const f=e.target.dataset?.f;if(!f||R.screen!=='search')return;R.field=f;R.q=e.target.value;gSearch(R.q);const pos=e.target.selectionStart;renderRider();const n=$('#in-'+f,host);if(n){n.focus();n.setSelectionRange(pos,pos)}});
 document.addEventListener('focusin',e=>{const f=e.target.dataset?.f;if(!f||R.screen!=='search'||R.field===f)return;R.field=f;R.q='';renderRider()});
 function sendChat(txt){const id=R.rideId||D.rideId;const from=mode==='chauffeur'?'driver':'rider';mutate(d=>{const r=d.rides.find(x=>x.id===id);if(r){r.chat=r.chat||[];r.chat.push({from,txt,t:Date.now()})}});renderChat()}
 function renderChat(){const box=$('#chatbox',host);if(!box)return;const r=rideById(R.rideId||D.rideId)||{chat:[]};const me=mode==='chauffeur'?'driver':'rider';box.innerHTML=(r.chat||[]).map(m=>`<div class="msg ${m.from===me?'me':''}">${esc(m.txt)}<small>${hhmm(m.t)}</small></div>`).join('')||'<p class="muted" style="margin:0;font-size:13px">Les messages sont traduits automatiquement (français, darija, arabe, anglais).</p>';box.scrollTop=1e6}
@@ -1130,9 +1244,10 @@ function mountDriver(root){
    <div class="scrim" id="scrim" data-act="d-close"></div><aside class="drawer" id="drawer"></aside>
    <div id="pagehost"></div><div class="toasts"></div></div></div>`;
   host=$('#phone',root);
-  dMap=new SiirMap($('#map',root),{scene:driverScene,top:64,ambient:22,heat:true,seed:9});
+  dMap=makeMap($('#map',root),{scene:driverScene,top:64,ambient:22,heat:true,seed:9});
   const r=myRide();D.rideId=r?r.id:null;D.req=null;
   renderDriver();clearInterval(dTimer);dTimer=setInterval(driverTick,500);
+  if(GMODE&&!myRide())geoNow(w=>{mutate(d=>{Object.assign(d.drivers.find(x=>x.id==='d1'),w)});if(dMap)dMap.focus(w.x,w.y,1.6)});
 }
 function todayEarn(){return 286+(meD()?.earnToday||0)}
 function subPending(id='d1'){return db.subPayments.find(p=>p.driverId===id&&p.status==='pending')}
@@ -1223,8 +1338,9 @@ function driverTick(){
   if(r){const p=$('#live-prog',host),e=$('#live-eta',host);if(p)p.style.width=phaseProgress(r)*100+'%';if(e&&r.status!=='arrived')e.textContent=Math.max(1,Math.ceil((1-phaseProgress(r))*(r.status==='accepted'?r.etaMin:r.min)))+' min'}
 }
 function spawnSimRequest(){
-  const me=meD();const near=PLACES.filter(p=>Math.hypot(p.x-me.x,p.y-me.y)<300&&Math.hypot(p.x-me.x,p.y-me.y)>30);const a=near[Math.floor(Math.random()*near.length)]||PLACES[1];
+  const me=meD();const near=PLACES.filter(p=>Math.hypot(p.x-me.x,p.y-me.y)<300&&Math.hypot(p.x-me.x,p.y-me.y)>30);let a=near[Math.floor(Math.random()*near.length)]||PLACES[1];
   let b;do{b=PLACES[Math.floor(Math.random()*PLACES.length)]}while(b===a);
+  if(GMODE&&near.length<2){const an=Math.random()*6.28,bn=Math.random()*6.28,ra=40+Math.random()*60,rb=150+Math.random()*200;a={n:'Prise en charge à '+Math.round(ra*18.5/10)*10+' m',x:me.x+Math.cos(an)*ra,y:me.y+Math.sin(an)*ra};b={n:'Destination à '+(rb*KM_PER_U).toFixed(1).replace('.',',')+' km',x:a.x+Math.cos(bn)*rb,y:a.y+Math.sin(bn)*rb}}
   const cat=me.cats[Math.random()<.8?0:me.cats.length-1];const p=routePath(a,null,b),km=tripKm(p),min=tripMin(km),surge=surgeAt(a.x,a.y),q=quote(cat,km,min,surge,null);
   const now=Date.now();
   mutate(d=>{d.rides.push({id:'R'+uid(),origin:'simrider',target:'d1',riderName:RIDER_NAMES[Math.floor(Math.random()*RIDER_NAMES.length)],riderRating:+(4.6+Math.random()*.4).toFixed(2),pickup:{n:a.n,x:a.x,y:a.y},dest:{n:b.n,x:b.x,y:b.y},stop:null,cat,km,min,price:q.total,surge,promo:null,payment:'cash',status:'searching',driverId:null,sim:null,t:{created:now,phase:now},dur:{arrive:14000,trip:clamp(9000+km*1400,12000,30000)},etaMin:Math.max(2,Math.round(Math.hypot(a.x-me.x,a.y-me.y)*KM_PER_U*2.4)),pin:String(1000+Math.floor(Math.random()*9000)),chat:[],declined:[],city:'Casablanca'})});
@@ -1294,7 +1410,7 @@ function renderAdmin(soft){
   const m=$('#amain',host);const keepMap=soft&&A.view==='live'&&aMap;
   if(keepMap){const s=$('#live-side',host);if(s)s.innerHTML=liveSide();return}
   m.innerHTML=(AVIEW[A.view]||AVIEW.dash)();
-  const lm=$('#livemap',host);if(lm){aMap=new SiirMap(lm,{scene:adminScene,top:0,ambient:A.view==='live'?40:26,heat:true,seed:11});requestAnimationFrame(()=>aMap.fit([{x:120,y:250},{x:820,y:780}],20,3))}
+  const lm=$('#livemap',host);if(lm){aMap=makeMap(lm,{scene:adminScene,top:0,ambient:A.view==='live'?40:26,heat:true,seed:11});requestAnimationFrame(()=>aMap.fit([{x:120,y:250},{x:820,y:780}],20,3))}
   if(A.view==='zones'){$$('input[type=range]',m).forEach(r=>r.addEventListener('input',()=>{const z=r.dataset.z;$('#zm-'+z,host).textContent='×'+(+r.value).toFixed(1);mutate(d=>{d.zones.find(x=>x.id===z).m=+r.value})}))}
 }
 function adminScene(now){const sc={routes:[],markers:[],cars:[]};
@@ -1419,7 +1535,7 @@ addEventListener('storage',e=>{if(e.key===KEY||e.key===null){db=load();if(mode==
   const t=setTimeout(done,reduce?300:3000);
   sp.addEventListener('click',()=>{clearTimeout(t);done()});
 })();
-route();
+boot();
 </script>
 
 </body>
