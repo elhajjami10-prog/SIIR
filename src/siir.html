@@ -376,6 +376,27 @@ h1,h2,h3{font-family:var(--f-display);font-weight:700;margin:0;text-wrap:balance
 .navbtns .navg{border-color:rgba(234,67,53,.45)}
 .addr{font-size:12px;color:var(--muted);display:block;margin-top:2px}
 
+.bid{display:grid;gap:10px;padding:14px;border-radius:18px;background:linear-gradient(160deg,rgba(46,229,157,.08),rgba(14,23,20,.6));border:1px solid var(--line2)}
+.bidrow{display:grid;grid-template-columns:52px 1fr 52px;align-items:center;gap:10px}
+.bidbtn{height:52px;border-radius:16px;background:var(--panel2);border:1px solid var(--line2);font-size:26px;font-weight:700;line-height:1;color:var(--fg)}
+.bidbtn:disabled{opacity:.3;cursor:not-allowed}
+.bidbtn:not(:disabled):active{transform:scale(.95)}
+.bidval{text-align:center;font-family:var(--f-display);font-size:30px;font-weight:700;letter-spacing:-.02em}
+.bidval small{display:block;font-family:var(--f-mono);font-size:11px;font-weight:500;letter-spacing:.06em;color:var(--muted)}
+.bidbar{position:relative;height:6px;border-radius:6px;background:var(--panel2);margin:2px 4px}
+.bidbar .fill{position:absolute;top:0;bottom:0;border-radius:6px;background:linear-gradient(90deg,var(--red-hi),var(--amber) 50%,var(--green-hi))}
+.bidbar .rec{position:absolute;top:-4px;width:2px;height:14px;background:var(--fg);opacity:.6;transform:translateX(-1px)}
+.bidbar .dot{position:absolute;top:50%;width:16px;height:16px;border-radius:50%;background:var(--fg);border:3px solid var(--bg);box-shadow:0 0 0 2px var(--green-hi);transform:translate(-50%,-50%);transition:left .2s}
+.bidscale{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:10.5px;color:var(--dim)}
+.bidhint{font-size:12.5px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.offer{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:12px;border-radius:16px;background:var(--panel2);border:1px solid rgba(46,229,157,.4);animation:reqIn .35s cubic-bezier(.2,.8,.2,1) both}
+.offer .op{font-family:var(--f-display);font-size:20px;font-weight:700;text-align:right}
+.offer .op small{display:block;font-family:var(--f-mono);font-size:10.5px;font-weight:500;color:var(--amber)}
+.offer .acts{grid-column:1/-1;display:grid;grid-template-columns:1fr 2fr;gap:8px}
+.offer .tl{grid-column:1/-1;height:3px;border-radius:3px;background:var(--line);overflow:hidden}
+.offer .tl i{display:block;height:100%;background:var(--green-hi);transition:width .5s linear}
+.counter{display:grid;gap:8px;padding:12px;border-radius:16px;background:rgba(0,0,0,.18);border:1px dashed var(--line2);margin-top:12px}
+
 /* ---------- Authentification ---------- */
 .auth{position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;background:radial-gradient(90% 60% at 80% 0%,rgba(20,168,112,.18),transparent 60%),radial-gradient(70% 50% at 0% 100%,rgba(200,33,63,.16),transparent 60%),var(--bg);overflow:auto}
 .auth-in{flex:1;display:flex;flex-direction:column;gap:14px;padding:calc(20px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px))}
@@ -1218,7 +1239,7 @@ function renderRider(){
   requestAnimationFrame(rFitMap);
   if(R.screen==='search'){const f=$('#in-'+R.field,sh);if(f){f.focus();const v=f.value;f.value='';f.value=v}}
 }
-function riderSig(){const r=R.rideId&&rideById(R.rideId);return R.screen+'|'+(r?r.status+'|'+r.driverId+'|'+(r.chat||[]).length:'')}
+function riderSig(){const r=R.rideId&&rideById(R.rideId);return R.screen+'|'+(r?r.status+'|'+r.driverId+'|'+(r.chat||[]).length+'|'+r.price+'|'+(r.offers||[]).filter(o=>o.status==='pending').map(o=>o.id+o.price).join(','):'')}
 const greet=()=>{const h=new Date().getHours();return h<12?'Bonjour':h<18?'Bon après-midi':'Bonsoir'};
 const RS={
  home(){
@@ -1265,13 +1286,15 @@ const RS={
    <button class="opt ${R.promo?'on':''}" data-act="r-promo"><small>Promo</small><span>${ic('tag','sm')}${R.promo?esc(R.promo):'Ajouter'}</span></button>
    <button class="opt ${R.schedule?'on':''}" data-act="r-schedule"><small>Départ</small><span>${ic('clock','sm')}${R.schedule?hhmm(R.schedule):'Maintenant'}</span></button>
   </div>
-  <button class="btn primary block" data-act="r-order">${R.schedule?'Planifier':'Commander'} ${esc(C.n)} · ${money(q.total)}</button>`;
+  ${BID().on&&!R.schedule?bidBox(q.total):''}
+  <button class="btn primary block" data-act="r-order">${R.schedule?'Planifier':'Commander'} ${esc(C.n)} · ${money(offerFor(q.total))}</button>`;
  },
  searching(){
   const r=rideById(R.rideId);if(!r)return RS.home();const el=(Date.now()-r.t.created)/1000;
   return `<div class="radar"><i></i><i></i><i></i><span class="core">${ic(r.cat==='moto'?'moto':'car','lg')}</span></div>
   <div style="text-align:center"><div class="status-h">Recherche d'un chauffeur…</div><p class="muted" style="margin:6px 0 0">Nous contactons les chauffeurs ${esc(CATS[r.cat].n)} les plus proches de ${esc(r.pickup.n)}.</p></div>
   <div class="progress"><i id="live-prog" style="width:${clamp(el/20*100,4,100)}%"></i></div>
+  ${offersBlock(r)}
   ${tripBlock(r)}
   <button class="btn ghost block" data-act="r-cancel">Annuler la demande</button>`;
  },
@@ -1299,7 +1322,7 @@ const RS={
   <div class="stars">${[1,2,3,4,5].map(i=>`<button data-act="r-star" data-v="${i}" class="${R.rate>=i?'on':''}" aria-label="${i} étoiles">${ic('star')}</button>`).join('')}</div>
   ${R.rate?`<div class="chips" style="justify-content:center">${tags.map(t=>`<button class="chip ${R.tags.includes(t)?'on':''}" data-act="r-tag" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>`:''}
   <div><div class="eyebrow" style="margin-bottom:8px">Ajouter un pourboire</div><div class="chips">${[0,5,10,20].map(v=>`<button class="chip ${R.tip===v?'on':''}" data-act="r-tip" data-v="${v}">${v?v+' DH':'Non merci'}</button>`).join('')}</div></div>
-  <div class="trip"><div class="kv"><span>Prise en charge</span><span>${money(q.base)}</span></div><div class="kv"><span>Distance (${r.km.toFixed(1).replace('.',',')} km)</span><span>${money(q.kmC)}</span></div><div class="kv"><span>Durée (${r.min} min)</span><span>${money(q.minC)}</span></div>${r.surge>1?`<div class="kv"><span>Forte demande ×${r.surge.toFixed(1)}</span><span>+${money(q.surged-q.raw)}</span></div>`:''}${r.promo?`<div class="kv"><span>Code ${esc(r.promo)}</span><span class="up">−${money(q.disc)}</span></div>`:''}${R.tip?`<div class="kv"><span>Pourboire</span><span>${money(R.tip)}</span></div>`:''}<div class="kv tot"><span>Total · ${esc(PAY[r.payment].n)}</span><span>${money(r.price+R.tip)}</span></div></div>
+  <div class="trip"><div class="kv"><span>Prise en charge</span><span>${money(q.base)}</span></div><div class="kv"><span>Distance (${r.km.toFixed(1).replace('.',',')} km)</span><span>${money(q.kmC)}</span></div><div class="kv"><span>Durée (${r.min} min)</span><span>${money(q.minC)}</span></div>${r.surge>1?`<div class="kv"><span>Forte demande ×${r.surge.toFixed(1)}</span><span>+${money(q.surged-q.raw)}</span></div>`:''}${r.promo?`<div class="kv"><span>Code ${esc(r.promo)}</span><span class="up">−${money(q.disc)}</span></div>`:''}${r.base&&r.price!==r.base?`<div class="kv"><span>Prix négocié</span><span>${sgn(r.price-r.base)}</span></div>`:''}${R.tip?`<div class="kv"><span>Pourboire</span><span>${money(R.tip)}</span></div>`:''}<div class="kv tot"><span>Total · ${esc(PAY[r.payment].n)}</span><span>${money(r.price+R.tip)}</span></div></div>
   <button class="btn primary block" data-act="r-ratesend" ${R.rate?'':'disabled'}>Envoyer</button>`;
  },
  drive(){
@@ -1336,10 +1359,17 @@ function riderTick(){
     const nd=(r.chat||[]).filter(m=>m.from==='driver').length;if(nd>R.lastChatN){R.lastChatN=nd;if(!$('#modal .chat',host))toast('Nouveau message de votre chauffeur','', 'chat');else renderChat()}
   }
   if(sig!==R.sig){const prev=R.sig.split('|')[1];renderRider();if(r&&r.status==='arrived'&&prev==='accepted')toast('Votre chauffeur est arrivé','', 'pin')}
+  $$('.offer .tl i',host).forEach(i=>{i.style.width=Math.max(0,(+i.dataset.exp-Date.now())/OFFER_MS*100)+'%'});
   const p=$('#live-prog',host),e=$('#live-eta',host);
   if(r&&p)p.style.width=(r.status==='searching'?clamp((Date.now()-r.t.created)/200,4,100):phaseProgress(r)*100)+'%';
   if(r&&e)e.textContent=r.status==='accepted'?etaTxt(r):arrTxt(r);
   if(R.rental&&e){const el=(Date.now()-R.rental.t0)/1000;const c=FLEET.find(f=>f.id===R.rental.carId);if(R.rental.stage==='reserved'){const left=Math.max(0,900-el);e.textContent=Math.floor(left/60)+':'+String(Math.floor(left%60)).padStart(2,'0')}else{e.textContent=Math.floor(el/60)+':'+String(Math.floor(el%60)).padStart(2,'0');const co=$('#live-cost',host);if(co)co.textContent=money(Math.max(1,Math.ceil(el/60))*c.ppm)}}
+}
+function acceptOffer(d,r,o){
+  const now=Date.now(),dr=d.drivers.find(x=>x.id===o.driverId);let ds;
+  if(o.sim){let sx=r.pickup.x+(Math.random()<.5?-1:1)*(70+Math.random()*80),sy=r.pickup.y+40+Math.random()*90;if(!GMODE){sx=clamp(sx,20,980);sy=clamp(sy,coastY(sx)+30,980)}ds={x:sx,y:sy}}else ds={x:dr.x,y:dr.y};
+  Object.assign(r,{status:'accepted',driverId:o.driverId,price:o.price,sim:o.sim?'auto':'driver',dstart:ds,t:{...r.t,phase:now}});r.etaMin=o.eta||Math.max(2,Math.round(Math.hypot(r.pickup.x-ds.x,r.pickup.y-ds.y)*KM_PER_U*2.4));
+  o.status='accepted';(r.offers||[]).forEach(x=>{if(x!==o&&x.status==='pending')x.status='declined'});
 }
 function riderSim(){
   const now=Date.now();
@@ -1347,6 +1377,19 @@ function riderSim(){
   if(!need)return;
   mutate(d=>{let ch=false;
     d.rides.forEach(r=>{if(!(r.origin==='rider'&&(!r.riderPhone||r.riderPhone===d.me.phone)))return;
+      if(r.status==='searching'&&r.base&&BID().on){
+        (r.offers||[]).forEach(o=>{if(o.status==='pending'&&now-o.t>OFFER_MS){o.status='expired';ch=true}});
+        if(r.price<r.base){
+          const el=now-r.t.created,simN=(r.offers||[]).filter(o=>o.sim).length;
+          if((simN===0&&el>4000)||(simN===1&&el>10000)||(simN===2&&el>19000)){
+            const g=bidRange(r.base),used=(r.offers||[]).map(o=>o.driverId);
+            const dr=d.drivers.filter(x=>x.status==='approved'&&!x.owner&&x.cats.includes(r.cat)&&!used.includes(x.id)).sort(()=>Math.random()-.5)[0];
+            if(dr){const opts=[r.base,r.base+g.st,r.base+2*g.st,Math.max(r.price+g.st,r.base-g.st)].filter(v=>v>r.price&&v<=g.dhi);const pr=opts[Math.floor(Math.random()*opts.length)]||Math.min(g.dhi,r.price+g.st);
+              r.offers=r.offers||[];r.offers.push({id:uid(),driverId:dr.id,price:pr,t:now,status:'pending',sim:true,eta:2+Math.floor(Math.random()*6)});ch=true}
+          }
+          if(el<32000)return;   // offre basse : on laisse le temps aux propositions avant qu'un chauffeur accepte le prix demandé
+        }
+      }
       if(r.status==='searching'){
         const realOnline=d.drivers.some(x=>x.owner&&x.online&&x.status==='approved'&&x.cats.includes(r.cat)&&!(r.declined||[]).includes(x.id));
         if(now-r.t.created>(realOnline?20000:6500)){
@@ -1364,10 +1407,28 @@ function riderSim(){
       }
     });return ch});
 }
+const OFFER_MS=25000;
+function offersBlock(r){
+  const b=BID();if(!b.on||!r.base)return '';const g=bidRange(r.base),d=r.price-r.base;
+  const pend=(r.offers||[]).filter(o=>o.status==='pending');
+  const mineBox=`<div class="bid" style="padding:12px"><div class="between"><div><div class="eyebrow">Votre offre</div><b class="mono" style="font-size:18px">${money(r.price)}</b> ${d?`<span class="badge ${d>0?'':'r'}">${sgn(d)}</span>`:''}</div>${r.price<g.hi?`<button class="btn ghost sm" data-act="r-raise">${ic('plus','sm')}${g.st} DH</button>`:'<span class="badge n">Maximum</span>'}</div>${pend.length?'':`<small class="muted">${d<0?'Si aucun chauffeur n\'accepte, augmentez votre offre pour trouver plus vite.':'Les chauffeurs proches voient votre offre.'}</small>`}</div>`;
+  const cards=pend.map(o=>{const dr=drv(o.driverId)||{n:'Chauffeur',car:'',rating:5};const left=Math.max(0,OFFER_MS-(Date.now()-o.t));return `<div class="offer">${avatar(dr.n,'sm')}<div style="min-width:0"><b style="display:block">${esc(dr.n.split(' ')[0])} · ★ ${(dr.rating||5).toFixed(2)}</b><small class="muted">${esc((dr.car||'').split('·')[0])} · à ${o.eta||3} min</small></div><div class="op">${money(o.price)}<small>${sgn(o.price-r.price)}</small></div>
+    <div class="tl"><i data-exp="${o.t+OFFER_MS}" style="width:${left/OFFER_MS*100}%"></i></div>
+    <div class="acts"><button class="btn ghost sm" data-act="r-offer" data-o="${o.id}" data-ok="0">Refuser</button><button class="btn primary sm" data-act="r-offer" data-o="${o.id}" data-ok="1">Accepter ${money(o.price)}</button></div></div>`}).join('');
+  return mineBox+(pend.length?`<div class="eyebrow">${pend.length} proposition${pend.length>1?'s':''} de chauffeurs</div>${cards}`:'');
+}
+function offerFor(base){if(!BID().on||R.schedule||R.offer==null)return base;const g=bidRange(base);return clamp(R.offer,g.lo,g.hi)}
+function bidBox(base){
+  const g=bidRange(base),v=offerFor(base),d=v-base;
+  const hint=d>0?`${ic('zap','sm')} Offre plus élevée : un chauffeur accepte généralement plus vite.`:d<0?`${ic('clock','sm')} Offre plus basse : l'attente peut être plus longue et des chauffeurs peuvent vous proposer un autre prix.`:`${ic('check','sm')} Prix conseillé selon la distance, la durée et la demande.`;
+  return `<div class="bid"><div class="between"><div><div class="eyebrow">Proposez votre prix</div><small class="muted">De ${money(g.lo)} à ${money(g.hi)}, par pas de ${g.st} DH</small></div>${d?`<span class="badge ${d>0?'':'r'}">${sgn(d)}</span>`:'<span class="badge n">Conseillé</span>'}</div>
+  <div class="bidrow"><button class="bidbtn" data-act="r-bid" data-d="-1" aria-label="Baisser de ${g.st} DH" ${v<=g.lo?'disabled':''}>−</button><div class="bidval">${money(v)}<small>${d?'conseillé '+money(base):'prix conseillé'}</small></div><button class="bidbtn" data-act="r-bid" data-d="1" aria-label="Augmenter de ${g.st} DH" ${v>=g.hi?'disabled':''}>+</button></div>
+  ${bidBar(v,g.lo,g.hi,base)}<div class="bidhint">${hint}</div></div>`;
+}
 function createRide(){
   const qa=rQuoteAll();const a=placeOf(R.pickup),b=placeOf(R.dest),s=R.stop?placeOf(R.stop):null;const q=qa.q[R.cat];
   const now=Date.now();
-  const ride={id:'R'+uid(),origin:'rider',riderName:db.me.rider,riderPhone:db.me.phone,riderRating:4.92,pickup:{n:a.n,x:a.x,y:a.y},dest:{n:b.n,x:b.x,y:b.y},stop:s?{n:s.n,x:s.x,y:s.y}:null,cat:R.cat,km:qa.km,min:qa.min,price:q.total,surge:qa.surge,promo:qa.promo?qa.promo.code:null,payment:R.pay,status:R.schedule?'scheduled':'searching',driverId:null,sim:null,t:{created:now,phase:now,at:R.schedule||null},dur:{arrive:15000,trip:clamp(9000+qa.km*1400,12000,30000)},etaMin:CATS[R.cat].eta,pin:String(1000+Math.floor(Math.random()*9000)),chat:[],declined:[],city:'Casablanca'};
+  const ride={id:'R'+uid(),origin:'rider',riderName:db.me.rider,riderPhone:db.me.phone,riderRating:4.92,pickup:{n:a.n,x:a.x,y:a.y},dest:{n:b.n,x:b.x,y:b.y},stop:s?{n:s.n,x:s.x,y:s.y}:null,cat:R.cat,km:qa.km,min:qa.min,price:offerFor(q.total),base:q.total,offers:[],surge:qa.surge,promo:qa.promo?qa.promo.code:null,payment:R.pay,status:R.schedule?'scheduled':'searching',driverId:null,sim:null,t:{created:now,phase:now,at:R.schedule||null},dur:{arrive:15000,trip:clamp(9000+qa.km*1400,12000,30000)},etaMin:CATS[R.cat].eta,pin:String(1000+Math.floor(Math.random()*9000)),chat:[],declined:[],city:'Casablanca'};
   mutate(d=>{d.rides.push(ride);if(ride.promo){const p=d.promos.find(x=>x.code===ride.promo);if(p)p.uses++}});
   if(R.schedule){toast(`Course planifiée pour ${dfmt(R.schedule)}`,'', 'calendar');R.schedule=null;R.dest=null;R.stop=null;R.screen='home';renderRider();return}
   R.rideId=ride.id;R.lastChatN=0;R.screen='searching';renderRider();
@@ -1378,16 +1439,24 @@ Object.assign(ACTS,{
  'r-locate'(){if(GMODE){riderLocate(true);return}const a=placeOf(R.pickup);rMap.focus(a.x,a.y,2);toast('Position : '+a.n,'', 'locate')},
  'r-home'(){R.screen='home';R.dest=null;R.stop=null;R.showStop=false;R.carSel=null;R.svc='ride';renderRider()},
  'r-search'(){if(rideMine())return;R.screen='search';R.field=R.dest?'dest':'dest';R.q='';renderRider()},
- 'r-go'(el){R.dest=el.dataset.id;if(R.dest===R.pickup)R.pickup='twin';R.screen='choose';renderRider()},
+ 'r-go'(el){R.offer=null;R.dest=el.dataset.id;if(R.dest===R.pickup)R.pickup='twin';R.screen='choose';renderRider()},
  'r-svc'(el){const s=el.dataset.s;if(s==='drive'){R.screen='drive';R.carSel=null;renderRider();return}R.svc=s==='colis'?'colis':'ride';R.cat=s==='moto'?'moto':s==='colis'?'colis':'eco';R.screen='search';R.field='dest';R.q='';renderRider()},
  'r-gpick'(el){const id=el.dataset.id;gPlace(id).then(j=>{if(!j.location){toast('Lieu introuvable','r');return}const w=ll2w(j.location.latitude,j.location.longitude);PL['g_'+id]={id:'g_'+id,n:(j.displayName&&j.displayName.text)||'Lieu',d:j.formattedAddress||'',...w};R.gres=[];ACTS['r-pick']({dataset:{id:'g_'+id}})}).catch(()=>toast('Recherche indisponible','r'))},
- 'r-pick'(el){const id=el.dataset.id;if(R.field==='pickup')R.pickup=id;else if(R.field==='stop')R.stop=id;else R.dest=id;R.q='';
+ 'r-pick'(el){R.offer=null;const id=el.dataset.id;if(R.field==='pickup')R.pickup=id;else if(R.field==='stop')R.stop=id;else R.dest=id;R.q='';
    if(R.dest&&R.dest===R.pickup){toast('Le départ et la destination sont identiques','r');R.dest=null;renderRider();return}
    if(R.field==='pickup'||R.field==='stop'){R.field=R.dest?'dest':'dest';if(R.dest){R.screen='choose'}renderRider();return}
    R.screen='choose';renderRider()},
  'r-addstop'(){R.showStop=true;R.field='stop';R.q='';renderRider()},
  'r-rmstop'(){R.showStop=false;R.stop=null;R.field='dest';renderRider()},
- 'r-cat'(el){R.cat=el.dataset.c;renderRider()},
+ 'r-raise'(){const rid=R.rideId,r=rideById(rid);if(!r)return;const g=bidRange(r.base),nv=Math.min(g.hi,r.price+g.st);mutate(d=>{const x=d.rides.find(y=>y.id===rid);if(!x||x.status!=='searching')return false;x.price=Math.min(g.hi,x.price+g.st);(x.offers||[]).forEach(o=>{if(o.status==='pending'&&o.price<=x.price)o.price=x.price})});toast('Offre augmentée à '+money(nv),'', 'zap');renderRider()},
+ 'r-offer'(el){const rid=R.rideId,oid=el.dataset.o,ok=el.dataset.ok==='1';
+   const res=mutate(d=>{const r=d.rides.find(x=>x.id===rid);if(!r||r.status!=='searching')return false;const o=(r.offers||[]).find(x=>x.id===oid);if(!o||o.status!=='pending')return false;
+     if(!ok){o.status='declined';return}
+     acceptOffer(d,r,o)});
+   if(res===false){toast('Cette proposition n\'est plus disponible','r');renderRider();return}
+   if(ok)toast('Prix accepté : '+money(rideById(rid).price),'', 'check');renderRider()},
+ 'r-cat'(el){R.cat=el.dataset.c;R.offer=null;renderRider()},
+ 'r-bid'(el){const qa=rQuoteAll();const base=qa.q[R.cat].total,g=bidRange(base);R.offer=clamp(offerFor(base)+(+el.dataset.d)*g.st,g.lo,g.hi);if(R.offer===base)R.offer=null;renderRider()},
  'r-pay'(){openModal(`<h3>Moyen de paiement</h3><div class="list">${Object.entries(PAY).map(([k,p])=>`<button class="li" style="width:100%;text-align:left" data-act="r-setpay" data-k="${k}"><span class="qi">${ic(p.i)}</span><span class="tx"><b>${esc(p.n)}</b><small>${k==='wallet'?'Solde : '+money(db.me.wallet):k==='cash'?'Payez le chauffeur en fin de course':'Carte bancaire marocaine (CMI)'}</small></span>${R.pay===k?ic('check'):''}</button>`).join('')}</div>`)},
  'r-setpay'(el){R.pay=el.dataset.k;closeModal();renderRider()},
  'r-promo'(){openModal(`<h3>Code promo</h3><div class="row"><input class="input" id="promo-in" placeholder="Ex. SIIR20" value="${esc(R.promo||'')}" style="text-transform:uppercase"><button class="btn primary sm" data-act="r-promook">Appliquer</button></div><div class="list">${db.promos.filter(p=>p.active).map(p=>`<button class="li" style="width:100%;text-align:left" data-act="r-applypromo" data-code="${esc(p.code)}"><span class="badge">${esc(p.code)}</span><span class="tx"><small>${esc(p.desc)}</small></span></button>`).join('')}</div>${R.promo?`<button class="btn ghost block sm" data-act="r-applypromo" data-code="">Retirer le code</button>`:''}`)},
@@ -1462,12 +1531,18 @@ function riderPage(p){
   else if(p==='parametres'){title='Paramètres';body=`<div class="card"><div class="list"><div class="li">${avatar(me.rider,'sm')}<span class="tx"><b>${esc(me.rider)}</b><small>${esc(me.phone||'')} · vérifié</small></span></div><div class="li"><span class="qi">${ic('globe')}</span><span class="tx"><b>Langue</b><small>Français · العربية · English · ⵜⴰⵎⴰⵣⵉⵖⵜ</small></span><span class="badge">FR</span></div><div class="li"><span class="tx"><b>Notifications</b><small>Statut des courses et offres</small></span>${toggle(me.settings.notif,'r-set','notif')}</div><div class="li"><span class="qi">${ic('home')}</span><span class="tx"><b>Maison</b><small>${esc(placeOf(me.home).n)}</small></span></div><div class="li"><span class="qi">${ic('work')}</span><span class="tx"><b>Travail</b><small>${esc(placeOf(me.work).n)}</small></span></div></div></div><button class="btn ghost block" data-act="r-reset">${ic('refresh')}Réinitialiser les données de démo</button>`}
   PH.innerHTML=`<section class="page"><div class="page-h"><button class="iconbtn" data-act="r-pageclose" aria-label="Retour">${ic('back')}</button><h2>${title}</h2></div><div class="page-b">${body}</div></section>`;
 }
+/* ---------- Négociation du prix (bidding) ---------- */
+const BIDDEF={on:true,riderPct:20,driverPct:20,step:2};
+const BID=()=>({...BIDDEF,...(db.bidding||{})});
+function bidRange(base){const b=BID(),st=Math.max(1,b.step);const kr=Math.floor(base*b.riderPct/100/st),kd=Math.floor(base*b.driverPct/100/st);return{st,lo:Math.max(st,base-kr*st),hi:base+kr*st,dhi:base+kd*st}}
+const sgn=n=>n>0?'+'+money(n):n<0?'−'+money(-n):money(0);
+function bidBar(v,lo,hi,base){const pc=x=>hi>lo?(x-lo)/(hi-lo)*100:50;return `<div class="bidbar"><span class="fill" style="left:0;right:${100-pc(v)}%"></span><span class="rec" style="left:${pc(base)}%"></span><span class="dot" style="left:${pc(v)}%"></span></div><div class="bidscale"><span>${money(lo)}</span><span>conseillé ${money(base)}</span><span>${money(hi)}</span></div>`}
 const statusFR=s=>({completed:'Terminée',cancelled:'Annulée',searching:'Recherche',accepted:'Chauffeur en route',arrived:'Chauffeur arrivé',ongoing:'En course',scheduled:'Planifiée'}[s]||s);
 
 /* =========================================================
    CHAUFFEUR
    ========================================================= */
-const D={plan:'month',method:'cmi',req:null,reqT:0,lastSim:0,rideId:null,sig:'',pin:'',rateFor:null,rateV:0,lastChatN:0};
+const D={counter:0,offerId:null,offerT:0,plan:'month',method:'cmi',req:null,reqT:0,lastSim:0,rideId:null,sig:'',pin:'',rateFor:null,rateV:0,lastChatN:0};
 let dMap=null,dTimer=null;
 const meD=()=>db.drivers.find(x=>x.id===MYD);
 const DP=()=>{const m=meD();return (m&&m.prefs)||DEFPREFS};
@@ -1547,7 +1622,7 @@ function dFit(){if(!dMap)return;dMap.bottom=$('#sheet',host)?.offsetHeight||0;co
   if(r&&['accepted','arrived','ongoing'].includes(r.status)){dMap.fit(r.status==='accepted'?[r.dstart,r.pickup]:[r.pickup,r.dest],60);return}
   const q=D.req&&rideById(D.req);if(q){dMap.fit([me,q.pickup,q.dest],50);return}
   dMap.focus(me.x,me.y,me.online?1.25:1.7)}
-function driverSig(){const r=D.rideId&&rideById(D.rideId);return [meD().status,meD().online,D.req,D.rateFor,r?r.status:'',!!subOf(meD()),!!subPending()].join('|')}
+function driverSig(){const r=D.rideId&&rideById(D.rideId),q=D.req&&rideById(D.req),o=q&&D.offerId&&(q.offers||[]).find(x=>x.id===D.offerId);return [meD().status,meD().online,D.req,D.rateFor,r?r.status:'',!!subOf(meD()),!!subPending(),q?q.price:'',D.offerId,o?o.status:'',D.counter].join('|')}
 function renderDriver(){
   const sh=$('#sheet',host);if(!sh)return;const me=meD(),dd=DP();let h='';
   const r=D.rideId&&rideById(D.rideId);
@@ -1564,11 +1639,11 @@ function renderDriver(){
     ${tripBlock(r)}${btn}${r.status!=='ongoing'?`<button class="btn ghost block sm" data-act="d-cancel">Annuler (passager absent)</button>`:''}`;
   }
   else if(D.req){const q=rideById(D.req);const pk=Math.hypot(me.x-q.pickup.x,me.y-q.pickup.y)*KM_PER_U*1.3;
-    h=`<div class="req"><div class="between"><div><span class="badge ${q.surge>1?'a':''}">${esc(CATS[q.cat].n)}${q.surge>1?' · ×'+q.surge.toFixed(1):''}</span><div class="fare" style="margin-top:8px">${money(q.price)}</div><small class="muted">Espèces · 100 % pour vous</small></div><div class="ring"><svg viewBox="0 0 58 58"><circle cx="29" cy="29" r="25" fill="none" stroke="rgba(150,220,190,.15)" stroke-width="5"/><circle id="ringc" cx="29" cy="29" r="25" fill="none" stroke="#2EE59D" stroke-width="5" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="0"/></svg><b id="ringt">15</b></div></div>
+    h=`<div class="req"><div class="between"><div><span class="badge ${q.surge>1?'a':''}">${esc(CATS[q.cat].n)}${q.surge>1?' · ×'+q.surge.toFixed(1):''}</span><div class="fare" style="margin-top:8px">${money(q.price)}</div><small class="muted">${q.base&&q.base!==q.price?`Offre du passager · conseillé ${money(q.base)} <span class="badge ${q.price>q.base?'':'r'}">${sgn(q.price-q.base)}</span>`:'Espèces · 100 % pour vous'}</small></div><div class="ring"><svg viewBox="0 0 58 58"><circle cx="29" cy="29" r="25" fill="none" stroke="rgba(150,220,190,.15)" stroke-width="5"/><circle id="ringc" cx="29" cy="29" r="25" fill="none" stroke="#2EE59D" stroke-width="5" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="0"/></svg><b id="ringt">15</b></div></div>
     <div class="trip" style="margin-top:12px"><div class="eyebrow">Trajet</div><div class="pt"><i></i><span><b>Prise en charge · ${esc(q.pickup.n)}</b><span class="addr" id="ad-p"></span><small class="muted">À ${pk.toFixed(1).replace('.',',')} km de vous · ${Math.max(1,Math.round(pk*2.4))} min</small></span></div>${q.stop?`<div class="pt s"><i></i><span><b>Arrêt · ${esc(q.stop.n)}</b></span></div>`:''}<div class="pt d"><i></i><span><b>Destination · ${esc(q.dest.n)}</b><span class="addr" id="ad-d"></span><small class="muted">${q.km.toFixed(1).replace('.',',')} km · ${q.min} min de course</small></span></div>
     <button class="kv" style="width:100%;border-top:1px dashed var(--line);margin-top:4px;color:var(--green-hi);font-weight:700" data-act="d-steps" data-w="req"><span>${ic('route','sm')} Voir l'itinéraire détaillé</span><span>›</span></button></div>
     <div class="row" style="margin-top:12px">${avatar(q.riderName,'sm')}<small class="muted" style="flex:1">${esc(q.riderName)} · ★ ${(q.riderRating||4.8).toFixed(2)}</small></div>
-    <div class="row" style="margin-top:12px"><button class="btn ghost" style="flex:1" data-act="d-decline">Refuser</button><button class="btn primary" style="flex:2" data-act="d-accept">Accepter</button></div></div>`}
+    ${driverBidBox(q)}</div>`}
   else if(!me.online&&!subOf(me)){h=driverPaywall()}
   else if(!me.online){const sb=subOf(me),left=(sb.expiresAt-Date.now())/864e5;h=`<div style="text-align:center;display:grid;gap:6px"><div class="eyebrow">Vous êtes hors ligne</div><div class="status-h">Prêt à rouler, ${esc(me.n.split(' ')[0])} ?</div></div>
     <button class="go" data-act="d-online" aria-label="Passer en ligne">GO</button>
@@ -1585,6 +1660,17 @@ function renderDriver(){
   const e=$('#d-earn',host);if(e)e.textContent=money(todayEarn());
 }
 function rerenderDriverSub(){const pg=$('#pagehost .page-h h2',host);if(pg&&pg.textContent==='Abonnement')driverPage('abonnement');renderDriver()}
+function driverBidBox(q){
+  const b=BID(),base=q.base||q.price,g=bidRange(base),myO=D.offerId&&(q.offers||[]).find(o=>o.id===D.offerId);
+  if(myO&&myO.status==='pending'){const left=Math.max(0,Math.ceil((OFFER_MS-(Date.now()-myO.t))/1000));
+    return `<div class="counter" style="border-style:solid;border-color:rgba(46,229,157,.45)"><div class="between"><div><div class="eyebrow">Proposition envoyée</div><b style="font-family:var(--f-display);font-size:22px">${money(myO.price)}</b></div><span class="badge a" id="d-offer-left">${left} s</span></div><small class="muted">En attente de la réponse de ${esc(q.riderName.split(' ')[0])}…</small><div class="scan"></div><button class="btn ghost sm block" data-act="d-offer-cancel">Retirer ma proposition</button></div>`}
+  const acc=`<div class="row" style="margin-top:12px"><button class="btn ghost" style="flex:1" data-act="d-decline">Refuser</button><button class="btn primary" style="flex:2" data-act="d-accept">Accepter ${money(q.price)}</button></div>`;
+  if(!b.on||q.price>=g.dhi)return acc;
+  if(!D.counter||D.counter<=q.price||D.counter>g.dhi)D.counter=Math.min(g.dhi,q.price+g.st);
+  return acc+`<div class="counter"><div class="between"><div><div class="eyebrow">Proposer un autre prix</div><small class="muted">Jusqu'à ${money(g.dhi)} (+${b.driverPct} % du conseillé)</small></div></div>
+    <div class="bidrow"><button class="bidbtn" data-act="d-bid" data-d="-1" aria-label="Baisser" ${D.counter<=q.price+g.st?'disabled':''}>−</button><div class="bidval" style="font-size:24px">${money(D.counter)}<small>${sgn(D.counter-q.price)} sur l'offre</small></div><button class="bidbtn" data-act="d-bid" data-d="1" aria-label="Augmenter" ${D.counter>=g.dhi?'disabled':''}>+</button></div>
+    <button class="btn ghost block" data-act="d-propose" style="border-color:rgba(244,183,64,.5)">${ic('zap','sm')}Proposer ${money(D.counter)}</button></div>`;
+}
 function nextStepHTML(r){const c=currentStep(rideSteps(r),phaseProgress(r));return `<span class="mi">${MAN_IC(c.s.man)}</span><span><b>${esc(c.s.t)}</b><small>${c.left?'dans '+fmtDist(c.left)+' · ':''}${c.next?'puis '+esc(c.next.t.slice(0,48))+(c.next.t.length>48?'…':''):'touchez pour l\'itinéraire complet'}</small></span>`}
 function driverTick(){
   db=load();const me=meD(),now=Date.now();
@@ -1596,7 +1682,13 @@ function driverTick(){
   if(r&&r.origin==='simrider'){const last=r.chat&&r.chat[r.chat.length-1];if(last&&last.from==='driver'&&now-last.t>1800){mutate(d=>{const x=d.rides.find(y=>y.id===r.id);x.chat.push({from:'rider',txt:CHAT_RIDER[x.chat.length%CHAT_RIDER.length],t:now})})}}
   if(r){const nr=(r.chat||[]).filter(m=>m.from==='rider').length;if(nr>D.lastChatN){D.lastChatN=nr;if($('#chatbox',host))renderChat();else toast('Nouveau message du passager','', 'chat')}}
   if(me.online&&!D.rideId&&!D.rateFor){
-    if(D.req){const q=rideById(D.req);const left=15-(now-D.reqT)/1000;
+    if(D.req&&D.offerId){const q=rideById(D.req),o=q&&(q.offers||[]).find(x=>x.id===D.offerId);
+      if(q&&q.status==='accepted'&&q.driverId===MYD){D.rideId=q.id;D.req=null;D.offerId=null;D.lastChatN=0;toast('Le passager a accepté votre prix : '+money(q.price),'', 'check');renderDriver();return}
+      if(!q||!o||o.status!=='pending'||q.status!=='searching'){mutate(d=>{const x=d.rides.find(y=>y.id===D.req);if(x){x.declined=[...(x.declined||[]),MYD];if(x.origin==='simrider'&&x.status==='searching'){x.status='cancelled';x.t.done=now}}});D.req=null;D.offerId=null;toast(o&&o.status==='expired'?'Pas de réponse du passager':'Le passager a refusé votre proposition','r');renderDriver();return}
+      if(q.origin==='simrider'&&now-o.t>2600){const accept=o.price<=q.base*1.1||Math.random()<.35;const oid=o.id,qid=q.id,me=meD();mutate(d=>{const x=d.rides.find(y=>y.id===qid),y=x&&(x.offers||[]).find(z=>z.id===oid);if(!x||!y||y.status!=='pending')return false;if(accept){y.status='accepted';Object.assign(x,{status:'accepted',driverId:MYD,price:y.price,sim:'driver',dstart:{x:me.x,y:me.y},t:{...x.t,phase:Date.now()}});x.etaMin=Math.max(2,Math.round(Math.hypot(x.pickup.x-me.x,x.pickup.y-me.y)*KM_PER_U*2.4))}else y.status='declined'})}
+      const lb=$('#d-offer-left',host);if(lb)lb.textContent=Math.max(0,Math.ceil((OFFER_MS-(now-o.t))/1000))+' s';
+    }
+    else if(D.req){const q=rideById(D.req);const left=15-(now-D.reqT)/1000;
       if(!q||q.status!=='searching'){D.req=null;toast('La demande n\'est plus disponible','r');renderDriver();return}
       if(left<=0){ACTS['d-decline']();toast('Demande expirée','r');return}
       const rc=$('#ringc',host),rt=$('#ringt',host);if(rc){rc.setAttribute('stroke-dashoffset',String(157*(1-left/15)));rt.textContent=Math.ceil(left)}
@@ -1617,7 +1709,7 @@ function spawnSimRequest(){
   if(GMODE&&near.length<2){const an=Math.random()*6.28,bn=Math.random()*6.28,ra=40+Math.random()*60,rb=150+Math.random()*200;a={n:'Prise en charge à '+Math.round(ra*18.5/10)*10+' m',x:me.x+Math.cos(an)*ra,y:me.y+Math.sin(an)*ra};b={n:'Destination à '+(rb*KM_PER_U).toFixed(1).replace('.',',')+' km',x:a.x+Math.cos(bn)*rb,y:a.y+Math.sin(bn)*rb}}
   const cat=me.cats[Math.random()<.8?0:me.cats.length-1];const p=routePath(a,null,b),km=tripKm(p),min=tripMin(km),surge=surgeAt(a.x,a.y),q=quote(cat,km,min,surge,null);
   const now=Date.now();
-  mutate(d=>{d.rides.push({id:'R'+uid(),origin:'simrider',target:MYD,riderName:RIDER_NAMES[Math.floor(Math.random()*RIDER_NAMES.length)],riderRating:+(4.6+Math.random()*.4).toFixed(2),pickup:{n:a.n,x:a.x,y:a.y},dest:{n:b.n,x:b.x,y:b.y},stop:null,cat,km,min,price:q.total,surge,promo:null,payment:'cash',status:'searching',driverId:null,sim:null,t:{created:now,phase:now},dur:{arrive:14000,trip:clamp(9000+km*1400,12000,30000)},etaMin:Math.max(2,Math.round(Math.hypot(a.x-me.x,a.y-me.y)*KM_PER_U*2.4)),pin:String(1000+Math.floor(Math.random()*9000)),chat:[],declined:[],city:'Casablanca'})});
+  mutate(d=>{d.rides.push({id:'R'+uid(),origin:'simrider',target:MYD,riderName:RIDER_NAMES[Math.floor(Math.random()*RIDER_NAMES.length)],riderRating:+(4.6+Math.random()*.4).toFixed(2),pickup:{n:a.n,x:a.x,y:a.y},dest:{n:b.n,x:b.x,y:b.y},stop:null,cat,km,min,price:(()=>{const b=BID();if(!b.on)return q.total;const g=bidRange(q.total);const r=Math.random();return r<.45?q.total:r<.8?Math.max(g.lo,q.total-g.st*(1+Math.floor(Math.random()*2))):Math.min(g.hi,q.total+g.st)})(),base:q.total,offers:[],surge,promo:null,payment:'cash',status:'searching',driverId:null,sim:null,t:{created:now,phase:now},dur:{arrive:14000,trip:clamp(9000+km*1400,12000,30000)},etaMin:Math.max(2,Math.round(Math.hypot(a.x-me.x,a.y-me.y)*KM_PER_U*2.4)),pin:String(1000+Math.floor(Math.random()*9000)),chat:[],declined:[],city:'Casablanca'})});
 }
 Object.assign(ACTS,{
  'd-menu'(){driverDrawer();$('#drawer',host).classList.add('on');$('#scrim',host).classList.add('on')},
@@ -1629,6 +1721,12 @@ Object.assign(ACTS,{
  'd-cmiok'(){const pl=PLANS.find(p=>p.id===D.plan);mutate(d=>{const pay={id:'P'+uid(),driverId:MYD,plan:pl.id,method:'cmi',amount:pl.price,ref:'SIIR-'+(100000+Math.floor(Math.random()*900000)),at:Date.now(),status:'pending'};d.subPayments.unshift(pay);activateSub(d,pay)});closeModal();toast('Paiement accepté · abonnement activé','', 'ticket');rerenderDriverSub()},
  'd-instr'(){const p=subPending();if(!p)return;openModal(`<h3>${p.method==='virement'?'Effectuez le virement':'Payez chez Wafacash'}</h3><div class="trip"><div class="kv"><span>Bénéficiaire</span><span>SIIR SARL</span></div>${p.method==='virement'?'<div class="kv"><span>Banque / RIB</span><span>À configurer</span></div>':''}<div class="kv"><span>Montant</span><span>${p.amount} DH</span></div><div class="kv tot"><span>Référence</span><span>${p.ref}</span></div></div><p class="muted" style="margin:0;font-size:13px">Indiquez la référence ${p.method==='virement'?'dans le motif du virement':'au guichet'}. L'activation se fait dès validation par l'équipe SIIR! — dans cette démo, depuis Admin › Abonnements.</p><button class="btn ghost block" data-act="r-copy" data-t="${p.ref}">${ic('copy')}Copier la référence</button>`)},
  'd-register'(){driverRegisterPage()},
+ 'd-bid'(el){const q=rideById(D.req);if(!q)return;const g=bidRange(q.base||q.price);D.counter=clamp(D.counter+(+el.dataset.d)*g.st,q.price+g.st,g.dhi);renderDriver()},
+ 'd-propose'(){const qid=D.req,q=rideById(qid);if(!q)return;const me=meD(),price=D.counter,o={id:uid(),driverId:MYD,price,t:Date.now(),status:'pending',sim:false,eta:Math.max(2,Math.round(Math.hypot(q.pickup.x-me.x,q.pickup.y-me.y)*KM_PER_U*2.4))};
+   const ok=mutate(d=>{const x=d.rides.find(y=>y.id===qid);if(!x||x.status!=='searching')return false;x.offers=(x.offers||[]).filter(z=>!(z.driverId===MYD&&z.status==='pending'));x.offers.push(o)});
+   if(ok===false){toast('La demande n\'est plus disponible','r');D.req=null;renderDriver();return}
+   D.offerId=o.id;D.offerT=o.t;toast('Proposition de '+money(price)+' envoyée au passager','', 'zap');renderDriver()},
+ 'd-offer-cancel'(){const qid=D.req,oid=D.offerId;mutate(d=>{const x=d.rides.find(y=>y.id===qid),y=x&&(x.offers||[]).find(z=>z.id===oid);if(!y)return false;y.status='expired'});D.offerId=null;D.reqT=Date.now();renderDriver()},
  'd-steps'(el){const r=el.dataset.w==='req'?rideById(D.req):rideById(D.rideId);if(!r)return;
    const toP=stepsFor(r.status==='searching'?meD():r.dstart,r.pickup,r.pickup.n),trip=r.stop?[...stepsFor(r.pickup,r.stop,r.stop.n),...stepsFor(r.stop,r.dest,r.dest.n)]:stepsFor(r.pickup,r.dest,r.dest.n);
    const cur=r.status==='accepted'?currentStep(toP,phaseProgress(r)).i:-1,cur2=r.status==='ongoing'?currentStep(trip,phaseProgress(r)).i:-1;
@@ -1639,8 +1737,8 @@ Object.assign(ACTS,{
  'd-online'(){if(!subOf(meD())){toast('Abonnement requis pour passer en ligne','r');return}mutate(d=>{d.drivers.find(x=>x.id===MYD).online=true});D.onlineAt=Date.now();D.lastSim=Date.now()-4000;toast('Vous êtes en ligne. Les demandes vont arriver.','', 'power');renderDriver()},
  'd-offline'(){mutate(d=>{d.drivers.find(x=>x.id===MYD).online=false});D.req=null;toast('Vous êtes hors ligne','r','power');renderDriver()},
  'd-set'(el){const k=el.dataset.k;mutate(d=>{const p=d.drivers.find(x=>x.id===MYD).prefs;p[k]=!p[k]});el.classList.toggle('on');el.setAttribute('aria-checked',el.classList.contains('on'))},
- 'd-accept'(){const id=D.req;if(!id)return;const me=meD();const ok=mutate(d=>{const r=d.rides.find(x=>x.id===id);if(!r||r.status!=='searching')return false;Object.assign(r,{status:'accepted',driverId:MYD,sim:'driver',dstart:{x:me.x,y:me.y},t:{...r.t,phase:Date.now()}});r.etaMin=Math.max(2,Math.round(Math.hypot(r.pickup.x-me.x,r.pickup.y-me.y)*KM_PER_U*2.4))});D.req=null;if(ok===false){toast('Trop tard, la course a été prise','r');renderDriver();return}D.rideId=id;D.lastChatN=0;toast('Course acceptée. Navigation vers le passager.','', 'route');renderDriver()},
- 'd-decline'(){const id=D.req;mutate(d=>{const r=d.rides.find(x=>x.id===id);if(r){r.declined=[...(r.declined||[]),MYD];if(r.origin==='simrider'){r.status='cancelled';r.t.done=Date.now()}}});D.req=null;renderDriver()},
+ 'd-accept'(){const id=D.req;if(!id)return;D.offerId=null;D.counter=0;const me=meD();const ok=mutate(d=>{const r=d.rides.find(x=>x.id===id);if(!r||r.status!=='searching')return false;Object.assign(r,{status:'accepted',driverId:MYD,sim:'driver',dstart:{x:me.x,y:me.y},t:{...r.t,phase:Date.now()}});r.etaMin=Math.max(2,Math.round(Math.hypot(r.pickup.x-me.x,r.pickup.y-me.y)*KM_PER_U*2.4))});D.req=null;if(ok===false){toast('Trop tard, la course a été prise','r');renderDriver();return}D.rideId=id;D.lastChatN=0;toast('Course acceptée. Navigation vers le passager.','', 'route');renderDriver()},
+ 'd-decline'(){const id=D.req;D.offerId=null;D.counter=0;mutate(d=>{const r=d.rides.find(x=>x.id===id);if(r){r.declined=[...(r.declined||[]),MYD];if(r.origin==='simrider'){r.status='cancelled';r.t.done=Date.now()}}});D.req=null;renderDriver()},
  'd-arrived'(){const rid=D.rideId;mutate(d=>{const r=d.rides.find(x=>x.id===rid);if(!r)return false;r.status='arrived';r.t.phase=Date.now()});toast('Passager notifié de votre arrivée','', 'bell');renderDriver()},
  'd-start'(){const r=rideById(D.rideId);const ins=$$('.pinpad input',host);if(ins.length){const v=ins.map(i=>i.value).join('');if(v!==r.pin){toast('PIN incorrect. Demandez au passager son code à 4 chiffres.','r');ins.forEach(i=>i.value='');ins[0].focus();return}}const rid=D.rideId;mutate(d=>{const x=d.rides.find(y=>y.id===rid);if(!x)return false;x.status='ongoing';x.t.phase=Date.now()});toast('Course démarrée. Bonne route !','', 'route');renderDriver()},
  'd-finish'(){const id=D.rideId;mutate(d=>{const r=d.rides.find(x=>x.id===id);if(!r||r.status==='completed')return false;completeRide(d,r)});D.rideId=null;D.rateFor=id;D.rateV=5;renderDriver()},
@@ -1783,6 +1881,9 @@ const AVIEW={
   <div class="panel"><div class="panel-h"><h3>Derniers SMS de vérification envoyés</h3><span class="badge n">Simulés en démo</span></div>${(db.smsLog||[]).slice(0,8).map(x=>`<div class="li"><span class="tx"><b class="mono">${esc(x.to)}</b><small>${esc(x.kind)} · ${dfmt(x.t)}</small></span><span class="badge">Envoyé</span></div>`).join('')||'<p class="muted" style="font-size:13px">Aucun SMS envoyé pour l\'instant.</p>'}</div><div class="panel"><div class="tbl-w"><table><thead><tr><th>Passager</th><th>Téléphone</th><th class="r">Courses</th><th class="r">Note</th><th>Paiement</th><th>Inscrit</th><th>Statut</th><th></th></tr></thead><tbody>${db.riders.map((r,i)=>`<tr><td><div class="who">${avatar(r.n,'sm')}<b>${esc(r.n)}</b></div></td><td class="mono">${esc(r.phone)}</td><td class="r mono">${r.trips}</td><td class="r mono">${r.rating.toFixed(2)}</td><td>Espèces</td><td class="mono">${r.since}</td><td>${statusPill(r.status)}</td><td><button class="btn ghost sm" data-act="a-rider" data-i="${i}">${r.status==='active'?'Bloquer':'Débloquer'}</button></td></tr>`).join('')}</tbody></table></div></div>`},
  pricing(){return `<div class="mh"><div><h1>Tarification</h1><p>Les modifications s'appliquent immédiatement aux estimations de l'app passager.</p></div><button class="btn primary sm" data-act="a-savepricing">${ic('check','sm')}Enregistrer</button></div>
   <div class="panel"><div class="between"><div><h3 style="font-size:14px">Modèle économique</h3><small class="muted">Aucune commission : les chauffeurs paient un abonnement, les passagers paient la course en espèces. Prix arrondis au dirham.</small></div><button class="btn ghost sm" data-act="a-nav" data-v="subs">Voir les abonnements</button></div></div>
+  <div class="panel"><div class="panel-h"><div><h3>Négociation du prix (bidding)</h3><small class="muted">Le passager ajuste le prix conseillé, le chauffeur peut contre-proposer un prix plus élevé.</small></div><label class="row" style="gap:8px;font-weight:700"><input type="checkbox" id="bd-on" ${BID().on?'checked':''} style="width:18px;height:18px;accent-color:var(--green)">Activée</label></div>
+   <div class="f2" style="grid-template-columns:repeat(3,1fr)"><div class="field"><label for="bd-rp">Passager : variation max (%)</label><input class="input mono" type="number" min="0" max="50" step="1" id="bd-rp" value="${BID().riderPct}"></div><div class="field"><label for="bd-dp">Chauffeur : hausse max (%)</label><input class="input mono" type="number" min="0" max="50" step="1" id="bd-dp" value="${BID().driverPct}"></div><div class="field"><label for="bd-st">Pas (DH)</label><input class="input mono" type="number" min="1" max="10" step="1" id="bd-st" value="${BID().step}"></div></div>
+   <small class="dim mono" style="display:block;margin-top:10px">${(()=>{const g=bidRange(50);return `Exemple, prix conseillé 50 DH : le passager propose de ${g.lo} à ${g.hi} DH (pas de ${g.st} DH) · le chauffeur jusqu'à ${g.dhi} DH.`})()}</small></div>
   <div class="pgrid">${Object.keys(CATS).map(c=>{const p=db.pricing[c];return `<div class="pcard"><div class="h">${vehSVG(c)}<div><b>${CATS[c].n}</b><br><small class="muted">${esc(CATS[c].d)}</small></div></div><div class="f2">${[['base','Prise en charge (DH)'],['km','Par km (DH)'],['min','Par minute (DH)'],['minFare','Course minimum (DH)']].map(([k,n])=>`<div class="field"><label for="pp-${c}-${k}">${n}</label><input class="input mono" type="number" step="0.05" min="0" id="pp-${c}-${k}" value="${p[k]}"></div>`).join('')}</div><small class="dim mono">Ex. 8 km / 22 min : ${money(quote(c,8,22,1,null).total)}</small></div>`}).join('')}</div>`},
  promos(){return `<div class="mh"><div><h1>Promotions</h1><p>Les codes actifs sont utilisables immédiatement dans l'app passager.</p></div></div>
   <div class="g2"><div class="panel"><div class="tbl-w"><table><thead><tr><th>Code</th><th>Réduction</th><th>Description</th><th class="r">Utilisations</th><th>Statut</th><th></th></tr></thead><tbody>${db.promos.map((p,i)=>`<tr><td><span class="badge">${esc(p.code)}</span></td><td class="mono">${p.type==='percent'?`−${p.value} % (max ${p.max} DH)`:`−${p.value} DH`}</td><td>${esc(p.desc)}</td><td class="r mono">${p.uses.toLocaleString('fr-FR')}</td><td>${statusPill(p.active?'active':'inactive').replace('inactive</span>','Inactif</span>')}</td><td><button class="btn ghost sm" data-act="a-promotoggle" data-i="${i}">${p.active?'Désactiver':'Activer'}</button></td></tr>`).join('')}</tbody></table></div></div>
@@ -1801,7 +1902,7 @@ const AVIEW={
   <div class="panel"><h3 style="font-size:14px;margin-bottom:8px">Plateforme</h3><div class="li"><span class="tx"><b>Devise</b><small>Dirham marocain (MAD / DH)</small></span></div><div class="li"><span class="tx"><b>Courses</b><small>Paiement en espèces uniquement</small></span></div><div class="li"><span class="tx"><b>Abonnements chauffeurs</b><small>Carte CMI (à connecter), virement, Wafacash</small></span><span class="badge a">Sandbox</span></div><div class="li"><span class="tx"><b>Langues</b><small>Français, العربية, English, ⵜⴰⵎⴰⵣⵉⵖⵜ</small></span></div><div class="li"><span class="tx"><b>Données personnelles</b><small>Conformité loi 09-08 · CNDP</small></span></div><button class="btn ghost block" data-act="r-reset" style="margin-top:10px">${ic('refresh')}Réinitialiser les données de démo</button></div></div>`},
 };
 function subRevenue(){return db.subPayments.filter(p=>p.status==='paid'&&Date.now()-(p.paidAt||p.at)<30*864e5).reduce((a,p)=>a+p.amount,0)+186400}
-function ridesTable(list){return `<div class="tbl-w"><table><thead><tr><th>ID</th><th>Date</th><th>Passager</th><th>Chauffeur</th><th>Trajet</th><th>Catégorie</th><th>Paiement</th><th class="r">Montant</th><th>Statut</th></tr></thead><tbody>${list.map(r=>`<tr><td class="mono dim">${esc(r.id)}</td><td class="mono">${dfmt(r.t.at||r.t.created)}</td><td>${esc(r.riderName)}</td><td>${r.driverId&&drv(r.driverId)?esc(drv(r.driverId).n):'<span class="dim">—</span>'}</td><td>${esc(r.pickup.n)} → ${esc(r.dest.n)}</td><td>${esc(CATS[r.cat].n)}</td><td>${esc(PAY[r.payment].n)}</td><td class="r mono">${money(r.price)}</td><td><span class="pill ${r.status}">${statusFR(r.status)}</span></td></tr>`).join('')||'<tr><td colspan="9" class="muted">Aucune course.</td></tr>'}</tbody></table></div>`}
+function ridesTable(list){return `<div class="tbl-w"><table><thead><tr><th>ID</th><th>Date</th><th>Passager</th><th>Chauffeur</th><th>Trajet</th><th>Catégorie</th><th>Paiement</th><th class="r">Montant</th><th>Statut</th></tr></thead><tbody>${list.map(r=>`<tr><td class="mono dim">${esc(r.id)}</td><td class="mono">${dfmt(r.t.at||r.t.created)}</td><td>${esc(r.riderName)}</td><td>${r.driverId&&drv(r.driverId)?esc(drv(r.driverId).n):'<span class="dim">—</span>'}</td><td>${esc(r.pickup.n)} → ${esc(r.dest.n)}</td><td>${esc(CATS[r.cat].n)}</td><td>${esc(PAY[r.payment].n)}</td><td class="r mono">${money(r.price)}${r.base&&r.base!==r.price?`<br><small class="${r.price>r.base?'up':'down'}">${sgn(r.price-r.base)} négocié</small>`:''}</td><td><span class="pill ${r.status}">${statusFR(r.status)}</span></td></tr>`).join('')||'<tr><td colspan="9" class="muted">Aucune course.</td></tr>'}</tbody></table></div>`}
 Object.assign(ACTS,{
  'adm-fill'(){$('#adm-e').value='admin@siir.ma';$('#adm-p').value='Siir2026!'},
  'adm-logout'(){if(FBMODE){setSession(null);return}try{sessionStorage.removeItem('siir-admin')}catch(e){}window.__siirAdmin=false;route(true)},
@@ -1811,7 +1912,7 @@ Object.assign(ACTS,{
  'a-rider'(el){mutate(d=>{const r=d.riders[+el.dataset.i];r.status=r.status==='active'?'suspended':'active'});renderAdmin()},
  'a-subok'(el){mutate(d=>{const p=d.subPayments.find(x=>x.id===el.dataset.id);if(p&&p.status==='pending')activateSub(d,p)});toast('Paiement validé · abonnement activé');renderAdmin()},
  'a-subko'(el){mutate(d=>{const p=d.subPayments.find(x=>x.id===el.dataset.id);if(p)p.status='rejected'});toast('Paiement refusé','r');renderAdmin()},
- 'a-savepricing'(){const vals={};Object.keys(CATS).forEach(c=>['base','km','min','minFare'].forEach(k=>{const v=+$(`#pp-${c}-${k}`,host).value;if(!isNaN(v)&&v>=0)vals[c+'|'+k]=v}));mutate(d=>{Object.entries(vals).forEach(([ck,v])=>{const[c,k]=ck.split('|');d.pricing[c][k]=v})});toast('Tarifs enregistrés et appliqués à l\'app passager');renderAdmin()},
+ 'a-savepricing'(){const bd={on:$('#bd-on',host).checked,riderPct:clamp(Math.round(+$('#bd-rp',host).value||0),0,50),driverPct:clamp(Math.round(+$('#bd-dp',host).value||0),0,50),step:clamp(Math.round(+$('#bd-st',host).value||2),1,10)};mutate(d=>{d.bidding=bd});const vals={};Object.keys(CATS).forEach(c=>['base','km','min','minFare'].forEach(k=>{const v=+$(`#pp-${c}-${k}`,host).value;if(!isNaN(v)&&v>=0)vals[c+'|'+k]=v}));mutate(d=>{Object.entries(vals).forEach(([ck,v])=>{const[c,k]=ck.split('|');d.pricing[c][k]=v})});toast('Tarifs enregistrés et appliqués à l\'app passager');renderAdmin()},
  'a-promotoggle'(el){mutate(d=>{const p=d.promos[+el.dataset.i];p.active=!p.active});renderAdmin()},
  'a-ticket'(el){mutate(d=>{d.tickets[+el.dataset.i].status=el.dataset.s});toast(el.dataset.s==='resolu'?'Demande résolue':'Demande prise en charge');renderAdmin()},
 });
