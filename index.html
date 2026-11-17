@@ -405,6 +405,7 @@ h1,h2,h3{font-family:var(--f-display);font-weight:700;margin:0;text-wrap:balance
 .offer .acts{grid-column:1/-1;display:grid;grid-template-columns:1fr 2fr;gap:8px}
 .offer .tl{grid-column:1/-1;height:3px;border-radius:3px;background:var(--line);overflow:hidden}
 .offer .tl i{display:block;height:100%;background:var(--green-hi);transition:width .5s linear}
+.req.still{animation:none}
 .counter{display:grid;gap:8px;padding:12px;border-radius:16px;background:rgba(0,0,0,.18);border:1px dashed var(--line2);margin-top:12px}
 
 /* ---------- Authentification ---------- */
@@ -1240,11 +1241,11 @@ function rFitMap(){
   if(R.dest&&R.screen!=='home'){const pts=[a,placeOf(R.dest)];if(R.stop)pts.push(placeOf(R.stop));rMap.fit(pts,50);return}
   rMap.focus(a.x,a.y+10,1.9);
 }
-function renderRider(){
+function renderRider(still){
   const sh=$('#sheet',host);if(!sh)return;
   const r=R.rideId?rideById(R.rideId):rideMine();if(r&&ACTIVE.includes(r.status))R.rideId=r.id;
   sh.classList.toggle('full',R.screen==='search');
-  sh.innerHTML='<div class="grab"></div><div class="anim stack">'+(RS[R.screen]||RS.home)()+'</div>';
+  const st=sh.scrollTop;sh.innerHTML='<div class="grab"></div><div class="'+(still?'':'anim ')+'stack">'+(RS[R.screen]||RS.home)()+'</div>';if(still)sh.scrollTop=st;
   R.sig=riderSig();
   requestAnimationFrame(rFitMap);
   if(R.screen==='search'){const f=$('#in-'+R.field,sh);if(f){f.focus();const v=f.value;f.value='';f.value=v}}
@@ -1458,15 +1459,15 @@ Object.assign(ACTS,{
    R.screen='choose';renderRider()},
  'r-addstop'(){R.showStop=true;R.field='stop';R.q='';renderRider()},
  'r-rmstop'(){R.showStop=false;R.stop=null;R.field='dest';renderRider()},
- 'r-raise'(){const rid=R.rideId,r=rideById(rid);if(!r)return;const g=bidRange(r.base),nv=Math.min(g.hi,r.price+g.st);mutate(d=>{const x=d.rides.find(y=>y.id===rid);if(!x||x.status!=='searching')return false;x.price=Math.min(g.hi,x.price+g.st);(x.offers||[]).forEach(o=>{if(o.status==='pending'&&o.price<=x.price)o.price=x.price})});toast('Offre augmentée à '+money(nv),'', 'zap');renderRider()},
+ 'r-raise'(){const rid=R.rideId,r=rideById(rid);if(!r)return;const g=bidRange(r.base),nv=Math.min(g.hi,r.price+g.st);mutate(d=>{const x=d.rides.find(y=>y.id===rid);if(!x||x.status!=='searching')return false;x.price=Math.min(g.hi,x.price+g.st);(x.offers||[]).forEach(o=>{if(o.status==='pending'&&o.price<=x.price)o.price=x.price})});toast('Offre augmentée à '+money(nv),'', 'zap');renderRider(true)},
  'r-offer'(el){const rid=R.rideId,oid=el.dataset.o,ok=el.dataset.ok==='1';
    const res=mutate(d=>{const r=d.rides.find(x=>x.id===rid);if(!r||r.status!=='searching')return false;const o=(r.offers||[]).find(x=>x.id===oid);if(!o||o.status!=='pending')return false;
      if(!ok){o.status='declined';return}
      acceptOffer(d,r,o)});
    if(res===false){toast('Cette proposition n\'est plus disponible','r');renderRider();return}
-   if(ok)toast('Prix accepté : '+money(rideById(rid).price),'', 'check');renderRider()},
+   if(ok)toast('Prix accepté : '+money(rideById(rid).price),'', 'check');renderRider(!ok)},
  'r-cat'(el){R.cat=el.dataset.c;R.offer=null;renderRider()},
- 'r-bid'(el){const qa=rQuoteAll();const base=qa.q[R.cat].total,g=bidRange(base);R.offer=clamp(offerFor(base)+(+el.dataset.d)*g.st,g.lo,g.hi);if(R.offer===base)R.offer=null;renderRider()},
+ 'r-bid'(el){const qa=rQuoteAll();const base=qa.q[R.cat].total,g=bidRange(base);R.offer=clamp(offerFor(base)+(+el.dataset.d)*g.st,g.lo,g.hi);if(R.offer===base)R.offer=null;renderRider(true)},
  'r-pay'(){openModal(`<h3>Moyen de paiement</h3><div class="list">${Object.entries(PAY).map(([k,p])=>`<button class="li" style="width:100%;text-align:left" data-act="r-setpay" data-k="${k}"><span class="qi">${ic(p.i)}</span><span class="tx"><b>${esc(p.n)}</b><small>${k==='wallet'?'Solde : '+money(db.me.wallet):k==='cash'?'Payez le chauffeur en fin de course':'Carte bancaire marocaine (CMI)'}</small></span>${R.pay===k?ic('check'):''}</button>`).join('')}</div>`)},
  'r-setpay'(el){R.pay=el.dataset.k;closeModal();renderRider()},
  'r-promo'(){openModal(`<h3>Code promo</h3><div class="row"><input class="input" id="promo-in" placeholder="Ex. SIIR20" value="${esc(R.promo||'')}" style="text-transform:uppercase"><button class="btn primary sm" data-act="r-promook">Appliquer</button></div><div class="list">${db.promos.filter(p=>p.active).map(p=>`<button class="li" style="width:100%;text-align:left" data-act="r-applypromo" data-code="${esc(p.code)}"><span class="badge">${esc(p.code)}</span><span class="tx"><small>${esc(p.desc)}</small></span></button>`).join('')}</div>${R.promo?`<button class="btn ghost block sm" data-act="r-applypromo" data-code="">Retirer le code</button>`:''}`)},
@@ -1632,8 +1633,8 @@ function dFit(){if(!dMap)return;dMap.bottom=$('#sheet',host)?.offsetHeight||0;co
   if(r&&['accepted','arrived','ongoing'].includes(r.status)){dMap.fit(r.status==='accepted'?[r.dstart,r.pickup]:[r.pickup,r.dest],60);return}
   const q=D.req&&rideById(D.req);if(q){dMap.fit([me,q.pickup,q.dest],50);return}
   dMap.focus(me.x,me.y,me.online?1.25:1.7)}
-function driverSig(){const r=D.rideId&&rideById(D.rideId),q=D.req&&rideById(D.req),o=q&&D.offerId&&(q.offers||[]).find(x=>x.id===D.offerId);return [meD().status,meD().online,D.req,D.rateFor,r?r.status:'',!!subOf(meD()),!!subPending(),q?q.price:'',D.offerId,o?o.status:'',D.counter].join('|')}
-function renderDriver(){
+function driverSig(){const r=D.rideId&&rideById(D.rideId),q=D.req&&rideById(D.req),o=q&&D.offerId&&(q.offers||[]).find(x=>x.id===D.offerId);return [meD().status,meD().online,D.req,D.rateFor,r?r.status:'',!!subOf(meD()),!!subPending(),q?q.price:'',D.offerId,o?o.status:''].join('|')}
+function renderDriver(){const wasReq=!!$('.req',host);
   const sh=$('#sheet',host);if(!sh)return;const me=meD(),dd=DP();let h='';
   const r=D.rideId&&rideById(D.rideId);
   if(me.status!=='approved'){h=driverStatusCard(me)}
@@ -1664,7 +1665,7 @@ function renderDriver(){
     <div class="scan"></div>
     <div class="card"><div class="row">${ic('zap')}<span style="flex:1"><b style="font-size:13px">Forte demande : ${esc(hot.n)}</b><br><small class="muted">Tarif ×${hot.m.toFixed(1)} actuellement · zones en rouge sur la carte</small></span></div></div>
     <div class="list card" style="padding-block:4px"><div class="li"><span class="tx"><b>Mode destination</b><small>Courses en direction de la maison uniquement</small></span>${toggle(dd.dest,'d-set','dest')}</div><div class="li"><span class="tx"><b>Acceptation automatique</b><small>Accepter les courses sans confirmation</small></span>${toggle(dd.auto,'d-set','auto')}</div><div class="li"><span class="tx"><b>Courses simulées (démo)</b><small>Génère des demandes si aucun passager réel n'est connecté</small></span>${toggle(dd.sim,'d-set','sim')}</div></div>`}
-  sh.innerHTML='<div class="grab"></div><div class="anim stack">'+h+'</div>';D.sig=driverSig();
+  const still=wasReq&&!!D.req&&!D.rideId;sh.innerHTML='<div class="grab"></div><div class="'+(still?'':'anim ')+'stack">'+(still?h.replace('class="req"','class="req still"'):h)+'</div>';D.sig=driverSig();
   if(D.req&&!D.rideId){const q=rideById(D.req);if(q){realName(q.pickup,n=>{const e=$('#ad-p',host);if(e)e.textContent=n});realName(q.dest,n=>{const e=$('#ad-d',host);if(e)e.textContent=n})}}requestAnimationFrame(dFit);
   $$('.pinpad input',sh).forEach((inp,i,a)=>inp.addEventListener('input',()=>{inp.value=inp.value.replace(/\D/g,'').slice(0,1);if(inp.value&&a[i+1])a[i+1].focus()}));
   const e=$('#d-earn',host);if(e)e.textContent=money(todayEarn());
@@ -1731,7 +1732,7 @@ Object.assign(ACTS,{
  'd-cmiok'(){const pl=PLANS.find(p=>p.id===D.plan);mutate(d=>{const pay={id:'P'+uid(),driverId:MYD,plan:pl.id,method:'cmi',amount:pl.price,ref:'SIIR-'+(100000+Math.floor(Math.random()*900000)),at:Date.now(),status:'pending'};d.subPayments.unshift(pay);activateSub(d,pay)});closeModal();toast('Paiement accepté · abonnement activé','', 'ticket');rerenderDriverSub()},
  'd-instr'(){const p=subPending();if(!p)return;openModal(`<h3>${p.method==='virement'?'Effectuez le virement':'Payez chez Wafacash'}</h3><div class="trip"><div class="kv"><span>Bénéficiaire</span><span>SIIR SARL</span></div>${p.method==='virement'?'<div class="kv"><span>Banque / RIB</span><span>À configurer</span></div>':''}<div class="kv"><span>Montant</span><span>${p.amount} DH</span></div><div class="kv tot"><span>Référence</span><span>${p.ref}</span></div></div><p class="muted" style="margin:0;font-size:13px">Indiquez la référence ${p.method==='virement'?'dans le motif du virement':'au guichet'}. L'activation se fait dès validation par l'équipe SIIR! — dans cette démo, depuis Admin › Abonnements.</p><button class="btn ghost block" data-act="r-copy" data-t="${p.ref}">${ic('copy')}Copier la référence</button>`)},
  'd-register'(){driverRegisterPage()},
- 'd-bid'(el){const q=rideById(D.req);if(!q)return;const g=bidRange(q.base||q.price);D.counter=clamp(D.counter+(+el.dataset.d)*g.st,q.price+g.st,g.dhi);renderDriver()},
+ 'd-bid'(el){const q=rideById(D.req);if(!q)return;const g=bidRange(q.base||q.price);D.counter=clamp(D.counter+(+el.dataset.d)*g.st,q.price+g.st,g.dhi);const c=$('.counter',host);if(!c)return renderDriver();$('.bidval',c).innerHTML=money(D.counter)+'<small>'+sgn(D.counter-q.price)+' sur l\'offre</small>';$('[data-act="d-bid"][data-d="-1"]',c).disabled=D.counter<=q.price+g.st;$('[data-act="d-bid"][data-d="1"]',c).disabled=D.counter>=g.dhi;$('[data-act="d-propose"]',c).innerHTML=ic('zap','sm')+'Proposer '+money(D.counter)},
  'd-propose'(){const qid=D.req,q=rideById(qid);if(!q)return;const me=meD(),price=D.counter,o={id:uid(),driverId:MYD,price,t:Date.now(),status:'pending',sim:false,eta:Math.max(2,Math.round(Math.hypot(q.pickup.x-me.x,q.pickup.y-me.y)*KM_PER_U*2.4))};
    const ok=mutate(d=>{const x=d.rides.find(y=>y.id===qid);if(!x||x.status!=='searching')return false;x.offers=(x.offers||[]).filter(z=>!(z.driverId===MYD&&z.status==='pending'));x.offers.push(o)});
    if(ok===false){toast('La demande n\'est plus disponible','r');D.req=null;renderDriver();return}
