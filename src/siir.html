@@ -939,7 +939,7 @@ class GSiirMap{
     this.loop=this.loop.bind(this);requestAnimationFrame(this.loop);
   }
   resize(){const r=this.wrap.getBoundingClientRect();const d=Math.min(window.devicePixelRatio||1,2);this.W=r.width;this.H=r.height;this.d=d;this.c.width=Math.max(1,r.width*d);this.c.height=Math.max(1,r.height*d)}
-  fit(pts,pad=50){pts=pts.filter(Boolean);if(!pts.length)return;if(pts.length===1||pts.every(p=>Math.hypot(p.x-pts[0].x,p.y-pts[0].y)<5))return this.focus(pts[0].x,pts[0].y,2);const b=new google.maps.LatLngBounds();pts.forEach(p=>b.extend(w2ll(p.x,p.y)));this.map.fitBounds(b,{top:this.top+pad,bottom:this.bottom+pad,left:pad,right:pad})}
+  fit(pts,pad=50){pts=pts.filter(Boolean);if(!pts.length)return;if(pts.length===1||pts.every(p=>Math.hypot(p.x-pts[0].x,p.y-pts[0].y)<5))return this.focus(pts[0].x,pts[0].y,2);const b=new google.maps.LatLngBounds();pts.forEach(p=>b.extend(w2ll(p.x,p.y)));const H=this.H||600,W=this.W||400,pv=Math.min(pad,24),top=Math.min(this.top+pv,H*.3),bot=Math.max(0,Math.min(this.bottom+pv,H-top-140)),ph=Math.min(pad,Math.max(10,(W-120)/2));this.map.fitBounds(b,{top,bottom:bot,left:ph,right:ph});google.maps.event.addListenerOnce(this.map,'idle',()=>{if(this.map.getZoom()<11&&Math.max(...pts.map(p=>p.x))-Math.min(...pts.map(p=>p.x))<1500)this.map.setZoom(11)})}
   focus(x,y,s){const z=s?clamp(Math.round(Math.log2(7049*s)),3,18):this.map.getZoom();this.map.setZoom(z);this.map.setCenter(w2ll(x,y));this.map.panBy(0,(this.bottom-this.top)/2)}
   px(x,y){const pr=this.ov.getProjection();if(!pr)return null;const p=pr.fromLatLngToContainerPixel(new google.maps.LatLng(w2ll(x,y)));return p?[p.x,p.y]:null}
   loop(now){if(!this.c.isConnected){this.ro.disconnect();return}this.draw(now);requestAnimationFrame(this.loop)}
