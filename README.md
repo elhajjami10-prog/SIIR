@@ -30,7 +30,7 @@ Ouvrez `index.html` (ou la version publiée) avec l'une de ces ancres :
 - Phase pilote : toutes les données sont dans un seul document Firestore lisible par les utilisateurs connectés. Avant le lancement public : découper en collections (users, drivers, rides, payments) avec des règles par propriétaire et la logique sensible dans des Cloud Functions.
 
 ## Fonctionnalités
-- **Passager** : recherche de lieux, Maison/Travail, arrêt intermédiaire, 7 catégories (Eco, Confort, Femme, XL, Moto, Black, Colis), prix en DH, majoration, codes promo, paiement en espèces, courses planifiées, suivi live, PIN, chat, appel masqué, centre de sécurité & SOS, partage, notation, pourboire, reçu, historique, parrainage, support, **Siir Drive** (autopartage à la minute).
+- **Passager** : recherche de lieux, Maison/Travail, arrêt intermédiaire, 7 catégories (Eco, Confort, Femme, XL, Moto, VIP, Colis), prix en DH, majoration, codes promo, paiement en espèces, courses planifiées, suivi live, PIN, chat, appel masqué, centre de sécurité & SOS, partage, notation, pourboire, reçu, historique, parrainage, support, **Siir Drive** (autopartage à la minute).
 - **Chauffeur** : en ligne/hors ligne, carte de chaleur, demandes avec compte à rebours, acceptation auto, mode destination, navigation, PIN, abonnement obligatoire (CMI / virement / Wafacash), gains (jour/semaine) sans commission, documents, véhicule, défis & bonus.
 - **Admin** : KPI, carte en direct, courses, chauffeurs (validation/suspension), passagers, **abonnements** (validation des virements / Wafacash, revenus), tarification par catégorie, promotions, zones & majoration, support/SOS, villes.
 
